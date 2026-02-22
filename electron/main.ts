@@ -56,21 +56,15 @@ function createWindow() {
     });
   });
 
-  // Load splash screen immediately (local file, instant)
-  // Load splash screen immediately (local file, instant)
-  mainWindow.loadFile(path.join(__dirname, "splash.html"));
-
   const isDev = process.env.VITE_DEV_SERVER_URL;
 
-  // After splash is shown, load the actual app
-  mainWindow.webContents.once("did-finish-load", () => {
-    if (isDev) {
-      mainWindow?.loadURL(isDev);
-      mainWindow?.webContents.openDevTools();
-    } else {
-      mainWindow?.loadFile(path.join(__dirname, "../dist/index.html"));
-    }
-  });
+  if (isDev) {
+    mainWindow.loadURL(isDev);
+    mainWindow.webContents.openDevTools();
+  } else {
+    // Load app directly to maintain consistent origin for localStorage persistence
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+  }
 }
 
 ipcMain.handle("ping", async () => "pong");

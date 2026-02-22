@@ -143,4 +143,12 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Ensure inputs are always interactable in Electron frameless windows */
+  input,
+  textarea,
+  select,
+  button,
+  a {
+    -webkit-app-region: no-drag;
+  }
 }
