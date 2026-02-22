@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, Plus, Loader2, Download } from "lucide-react";
+import { Search, Plus, Loader2, Printer } from "lucide-react";
+
+import { printSites } from "@/lib/sitesPrint";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,8 +129,9 @@ export default function SitesPage() {
                 variant="outline"
                 className="h-10 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:text-white dark:hover:bg-zinc-700/50"
                 disabled={filtered.length === 0}
+                onClick={() => printSites(filtered)}
               >
-                <Download className="h-4 w-4" />
+                <Printer className="h-4 w-4" />
               </Button>
             </div>
           </div>
