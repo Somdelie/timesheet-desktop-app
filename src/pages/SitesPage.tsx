@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, Plus, Loader2, Printer } from "lucide-react";
+import { Search, Plus, Loader2, Printer, CalendarDays } from "lucide-react";
 
 import { printSites } from "@/lib/sitesPrint";
 
@@ -20,10 +20,12 @@ import { cachedFetch } from "@/lib/apiCache";
 import SitesTable, { type SiteRow } from "@/components/sites/SitesTable";
 
 const API_BASE_URL =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 export default function SitesPage() {
   const { token } = useAuth();
@@ -35,6 +37,10 @@ export default function SitesPage() {
   const [query, setQuery] = useState("");
   const [show, setShow] = useState<"active" | "all">("active");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedSites, setSelectedSites] = useState<SiteRow[]>([]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [dateLoading, setDateLoading] = useState(false);
 
   // Auto-open dialog if ?create=true in URL
   useEffect(() => {
@@ -46,18 +52,25 @@ export default function SitesPage() {
     }
   }, [searchParams, setSearchParams]);
 
-  const loadSites = async (forceRefresh = false) => {
+  const loadSites = async (
+    forceRefresh = false,
+    overrideDateFrom?: string,
+    overrideDateTo?: string,
+  ) => {
     if (!token) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (query) params.set("q", query);
       if (show === "active") params.set("isActive", "true");
+      const df = overrideDateFrom ?? dateFrom;
+      const dt = overrideDateTo ?? dateTo;
+      if (df) params.set("dateFrom", df);
+      if (dt) params.set("dateTo", dt);
 
       const result = await cachedFetch<{ sites: SiteRow[] }>(
         `${API_BASE_URL}/api/app/admin/sites?${params.toString()}`,
         {
-          cacheKey: `sites-${show}-${query}`,
+          cacheKey: `sites-${show}-${df}-${dt}`,
           ttlMs: 10 * 60 * 1000, // 10 minutes
           forceRefresh,
           headers: {
@@ -81,11 +94,30 @@ export default function SitesPage() {
     loadSites();
   }, [token, show]);
 
-  const handleSearch = () => {
-    loadSites(true); // Force refresh on manual search
+  const handleApplyDateRange = () => {
+    setDateLoading(true);
+    loadSites(true).finally(() => setDateLoading(false));
   };
 
-  const filtered = sites;
+  const handleClearDateRange = () => {
+    setDateFrom("");
+    setDateTo("");
+    // Reload without date filters
+    loadSites(true, "", "");
+  };
+
+  function getSitesForExport() {
+    return selectedSites.length > 0 ? selectedSites : filtered;
+  }
+  const filtered = sites.filter((s) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      s.name.toLowerCase().includes(q) ||
+      (s.code && s.code.toLowerCase().includes(q)) ||
+      (s.location && s.location.toLowerCase().includes(q))
+    );
+  });
 
   if (loading) {
     return (
@@ -100,61 +132,95 @@ export default function SitesPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5">
-      {/* Controls */}
-      <div className="rounded border border-zinc-200/50 bg-white/80 backdrop-blur-sm p-3 shadow-sm transition-all hover:shadow-md dark:border-zinc-700/50 dark:bg-card/40">
-        <div className="flex flex-col gap-4 sm:flex-row items-end sm:justify-between">
-          <div className="flex-3">
-            <label
-              htmlFor="search"
-              className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2"
-            >
-              Search Sites Manage and organize all your work sites in one place.
-              Use the search to quickly find sites by name, code, or location.
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
-                <Input
-                  id="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSearch();
-                  }}
-                  placeholder="Search by name, code, location..."
-                  className="h-10 pl-9 dark:bg-zinc-800/50 dark:border-zinc-700/50 dark:text-white dark:placeholder-zinc-500"
-                />
-              </div>
-              <Button
-                variant="outline"
-                className="h-10 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:text-white dark:hover:bg-zinc-700/50"
-                disabled={filtered.length === 0}
-                onClick={() => printSites(filtered)}
-              >
-                <Printer className="h-4 w-4" />
-              </Button>
-            </div>
+      {/* Controls — single row */}
+      <div className="rounded border border-border/50 bg-card/80 backdrop-blur-sm px-3 py-2 shadow-sm transition-all hover:shadow-md">
+        <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="relative w-48">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search..."
+              className="h-8 pl-8 text-sm"
+            />
           </div>
 
-          <div className="flex flex-1 gap-2">
+          {/* Divider */}
+          <div className="h-6 w-px bg-border" />
+
+          {/* Date range */}
+          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-8 w-36 text-sm"
+          />
+          <span className="text-xs text-muted-foreground">→</span>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-8 w-36 text-sm"
+          />
+          <Button
+            size="sm"
+            onClick={handleApplyDateRange}
+            disabled={dateLoading || (!dateFrom && !dateTo)}
+            className="h-8 px-3 text-sm"
+          >
+            {dateLoading ? "Loading..." : "Apply"}
+          </Button>
+          {(dateFrom || dateTo) && (
             <Button
-              variant={show === "active" ? "default" : "outline"}
-              className="h-10 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:text-white dark:hover:bg-zinc-700/50"
-              onClick={() => setShow("active")}
+              size="sm"
+              variant="outline"
+              onClick={handleClearDateRange}
+              className="h-8 px-3 text-sm"
             >
-              Active
+              Clear
+            </Button>
+          )}
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-border" />
+
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            {selectedSites.length > 0 && (
+              <span className="text-xs font-medium text-primary mr-1">
+                {selectedSites.length} site
+                {selectedSites.length === 1 ? "" : "s"} selected
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              disabled={filtered.length === 0}
+              onClick={() => printSites(getSitesForExport())}
+              title={
+                selectedSites.length > 0
+                  ? `Print ${selectedSites.length} selected`
+                  : "Print all"
+              }
+            >
+              <Printer className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant={show === "all" ? "default" : "outline"}
-              className="h-10 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:text-white dark:hover:bg-zinc-700/50"
+              size="sm"
+              className="h-8"
               onClick={() => setShow("all")}
             >
               All
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2" size="lg">
-                  <Plus className="h-4 w-4" />
+                <Button size="sm" className="h-8 gap-1.5 px-3">
+                  <Plus className="h-3.5 w-3.5" />
                   New Site
                 </Button>
               </DialogTrigger>
@@ -179,31 +245,34 @@ export default function SitesPage() {
 
       {/* Sites Table */}
       {filtered.length === 0 ? (
-        <div className="rounded border border-dashed border-zinc-300 bg-white/50 p-12 text-center dark:border-zinc-700/50 dark:bg-card/30">
-          <div className="mx-auto w-12 h-12 rounded-full bg-zinc-100 dark:bg-slate-950 flex items-center justify-center mb-4">
-            <Search className="h-6 w-6 text-zinc-400 dark:text-zinc-500" />
+        <div className="rounded border border-dashed border-border bg-card/50 p-12 text-center">
+          <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Search className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
+          <h3 className="text-lg font-semibold text-foreground">
             No sites found
           </h3>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             Try adjusting your search or filters, or create a new site to get
             started.
           </p>
         </div>
       ) : (
-        <SitesTable data={filtered} />
+        <SitesTable data={filtered} onSelectionChange={setSelectedSites} />
       )}
     </div>
   );
 }
 
-// Simplified Create Site Form
+// Create Site Form (expanded with address, lat, lon)
 function CreateSiteForm({ onSuccess }: { onSuccess: () => void }) {
   const { token } = useAuth();
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [location, setLocation] = useState("");
+  const [address, setAddress] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -228,6 +297,9 @@ function CreateSiteForm({ onSuccess }: { onSuccess: () => void }) {
           name: name.trim(),
           code: code.trim() || undefined,
           location: location.trim() || undefined,
+          address: address.trim() || undefined,
+          latitude: latitude.trim() ? parseFloat(latitude) : undefined,
+          longitude: longitude.trim() ? parseFloat(longitude) : undefined,
         }),
       });
 
@@ -274,8 +346,38 @@ function CreateSiteForm({ onSuccess }: { onSuccess: () => void }) {
         <Input
           value={location}
           onChange={(e) => setLocation(e.target.value)}
-          placeholder="e.g., 123 Main St, City"
+          placeholder="e.g., Midrand, Gauteng"
         />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Street Address</label>
+        <Input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="e.g., 123 Main St, Sandton"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Latitude</label>
+          <Input
+            type="number"
+            step="any"
+            value={latitude}
+            onChange={(e) => setLatitude(e.target.value)}
+            placeholder="-26.2041"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Longitude</label>
+          <Input
+            type="number"
+            step="any"
+            value={longitude}
+            onChange={(e) => setLongitude(e.target.value)}
+            placeholder="28.0473"
+          />
+        </div>
       </div>
       <div className="flex justify-end gap-2 pt-2">
         <Button type="submit" disabled={submitting}>

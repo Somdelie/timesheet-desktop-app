@@ -35,6 +35,7 @@ import {
 import {
   CalendarDays,
   BadgeDollarSign,
+  Phone,
   ArrowUpDown,
   ChevronUp,
   ChevronDown,
@@ -58,6 +59,7 @@ export type Employee = {
   isActive?: boolean;
   active?: boolean;
   createdAt: string;
+  phone?: string | null;
   fullName?: string;
   linkedToForemanId?: string | null;
   isForeman?: boolean;
@@ -167,6 +169,19 @@ export default function EmployeesTable({ data, onView }: EmployeesTableProps) {
             </div>
           );
         },
+      },
+      {
+        id: "phone",
+        accessorKey: "phone",
+        header: () => (
+          <div className="flex items-center gap-2">
+            <Phone className="h-4 w-4 text-violet-600" />
+            Phone
+          </div>
+        ),
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.phone || "—"}</span>
+        ),
       },
       {
         id: "dayRate",

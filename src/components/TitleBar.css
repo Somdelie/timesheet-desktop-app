@@ -1,8 +1,8 @@
 .titlebar {
   display: flex;
   align-items: center;
-  height: 56px;
-  min-height: 56px;
+  height: 64px;
+  min-height: 64px;
   user-select: none;
   position: sticky;
   top: 0;
@@ -97,7 +97,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 5px;
   transition: all 0.15s;
   padding: 0;
 }
@@ -150,4 +150,311 @@
 
 .titlebar-btn:focus {
   outline: none;
+}
+
+/* ── Dark mode: all themes ── */
+.dark .titlebar {
+  background-color: color-mix(
+    in oklab,
+    var(--theme-primary) 8%,
+    #0f172a
+  ) !important;
+  color: #e2e8f0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.dark .titlebar a,
+.dark .titlebar p,
+.dark .titlebar span,
+.dark .titlebar li,
+.dark .titlebar nav,
+.dark .titlebar button {
+  color: #94a3b8 !important;
+}
+
+.dark .titlebar svg {
+  color: #64748b !important;
+  stroke: #64748b;
+}
+
+.dark .titlebar-menu-btn,
+.dark .titlebar-icon-btn {
+  color: #94a3b8;
+}
+
+.dark .titlebar-menu-btn:hover,
+.dark .titlebar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.dark .titlebar-btn {
+  color: #94a3b8;
+}
+
+.dark .titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.dark .titlebar-btn.close:hover {
+  background: #e81123;
+  color: white;
+}
+
+/* ── Solid themes: light mode navbar ── */
+:root:not(.dark)[data-color-theme="green"] .titlebar,
+:root:not(.dark)[data-color-theme="blue"] .titlebar,
+:root:not(.dark)[data-color-theme="slate"] .titlebar,
+:root:not(.dark)[data-color-theme="purple"] .titlebar,
+:root:not(.dark)[data-color-theme="orange"] .titlebar {
+  background-color: var(--theme-accent) !important;
+  color: #ffffff !important;
+  border-bottom-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+:root:not(.dark)[data-color-theme="green"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="blue"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="slate"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="purple"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="orange"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="green"] .titlebar-icon-btn,
+:root:not(.dark)[data-color-theme="blue"] .titlebar-icon-btn,
+:root:not(.dark)[data-color-theme="slate"] .titlebar-icon-btn,
+:root:not(.dark)[data-color-theme="purple"] .titlebar-icon-btn,
+:root:not(.dark)[data-color-theme="orange"] .titlebar-icon-btn {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+:root:not(.dark)[data-color-theme="green"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="blue"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="slate"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="purple"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="orange"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="green"] .titlebar-icon-btn:hover,
+:root:not(.dark)[data-color-theme="blue"] .titlebar-icon-btn:hover,
+:root:not(.dark)[data-color-theme="slate"] .titlebar-icon-btn:hover,
+:root:not(.dark)[data-color-theme="purple"] .titlebar-icon-btn:hover,
+:root:not(.dark)[data-color-theme="orange"] .titlebar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+:root:not(.dark)[data-color-theme="green"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="blue"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="slate"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="purple"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="orange"] .titlebar-btn {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+:root:not(.dark)[data-color-theme="green"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="blue"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="slate"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="purple"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="orange"] .titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+:root:not(.dark)[data-color-theme="green"] .titlebar-btn.close:hover,
+:root:not(.dark)[data-color-theme="blue"] .titlebar-btn.close:hover,
+:root:not(.dark)[data-color-theme="slate"] .titlebar-btn.close:hover,
+:root:not(.dark)[data-color-theme="purple"] .titlebar-btn.close:hover,
+:root:not(.dark)[data-color-theme="orange"] .titlebar-btn.close:hover {
+  background: #e81123;
+  color: white;
+}
+
+:root:not(.dark)[data-color-theme="green"] .titlebar a,
+:root:not(.dark)[data-color-theme="green"] .titlebar p,
+:root:not(.dark)[data-color-theme="green"] .titlebar span,
+:root:not(.dark)[data-color-theme="green"] .titlebar li,
+:root:not(.dark)[data-color-theme="green"] .titlebar nav,
+:root:not(.dark)[data-color-theme="green"] .titlebar button,
+:root:not(.dark)[data-color-theme="blue"] .titlebar a,
+:root:not(.dark)[data-color-theme="blue"] .titlebar p,
+:root:not(.dark)[data-color-theme="blue"] .titlebar span,
+:root:not(.dark)[data-color-theme="blue"] .titlebar li,
+:root:not(.dark)[data-color-theme="blue"] .titlebar nav,
+:root:not(.dark)[data-color-theme="blue"] .titlebar button,
+:root:not(.dark)[data-color-theme="slate"] .titlebar a,
+:root:not(.dark)[data-color-theme="slate"] .titlebar p,
+:root:not(.dark)[data-color-theme="slate"] .titlebar span,
+:root:not(.dark)[data-color-theme="slate"] .titlebar li,
+:root:not(.dark)[data-color-theme="slate"] .titlebar nav,
+:root:not(.dark)[data-color-theme="slate"] .titlebar button,
+:root:not(.dark)[data-color-theme="purple"] .titlebar a,
+:root:not(.dark)[data-color-theme="purple"] .titlebar p,
+:root:not(.dark)[data-color-theme="purple"] .titlebar span,
+:root:not(.dark)[data-color-theme="purple"] .titlebar li,
+:root:not(.dark)[data-color-theme="purple"] .titlebar nav,
+:root:not(.dark)[data-color-theme="purple"] .titlebar button,
+:root:not(.dark)[data-color-theme="orange"] .titlebar a,
+:root:not(.dark)[data-color-theme="orange"] .titlebar p,
+:root:not(.dark)[data-color-theme="orange"] .titlebar span,
+:root:not(.dark)[data-color-theme="orange"] .titlebar li,
+:root:not(.dark)[data-color-theme="orange"] .titlebar nav,
+:root:not(.dark)[data-color-theme="orange"] .titlebar button {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+:root:not(.dark)[data-color-theme="green"] .titlebar svg,
+:root:not(.dark)[data-color-theme="blue"] .titlebar svg,
+:root:not(.dark)[data-color-theme="slate"] .titlebar svg,
+:root:not(.dark)[data-color-theme="purple"] .titlebar svg,
+:root:not(.dark)[data-color-theme="orange"] .titlebar svg {
+  color: rgba(255, 255, 255, 0.9) !important;
+  stroke: rgba(255, 255, 255, 0.9);
+}
+
+/* ── Light themes: light mode navbar ── */
+:root:not(.dark)[data-color-theme="mint"] .titlebar,
+:root:not(.dark)[data-color-theme="sky"] .titlebar,
+:root:not(.dark)[data-color-theme="rose"] .titlebar,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar,
+:root:not(.dark)[data-color-theme="navy"] .titlebar,
+:root:not(.dark)[data-color-theme="teal"] .titlebar,
+:root:not(.dark)[data-color-theme="amber"] .titlebar {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+:root:not(.dark)[data-color-theme="mint"] .titlebar a,
+:root:not(.dark)[data-color-theme="mint"] .titlebar p,
+:root:not(.dark)[data-color-theme="mint"] .titlebar span,
+:root:not(.dark)[data-color-theme="mint"] .titlebar li,
+:root:not(.dark)[data-color-theme="mint"] .titlebar nav,
+:root:not(.dark)[data-color-theme="mint"] .titlebar button,
+:root:not(.dark)[data-color-theme="sky"] .titlebar a,
+:root:not(.dark)[data-color-theme="sky"] .titlebar p,
+:root:not(.dark)[data-color-theme="sky"] .titlebar span,
+:root:not(.dark)[data-color-theme="sky"] .titlebar li,
+:root:not(.dark)[data-color-theme="sky"] .titlebar nav,
+:root:not(.dark)[data-color-theme="sky"] .titlebar button,
+:root:not(.dark)[data-color-theme="rose"] .titlebar a,
+:root:not(.dark)[data-color-theme="rose"] .titlebar p,
+:root:not(.dark)[data-color-theme="rose"] .titlebar span,
+:root:not(.dark)[data-color-theme="rose"] .titlebar li,
+:root:not(.dark)[data-color-theme="rose"] .titlebar nav,
+:root:not(.dark)[data-color-theme="rose"] .titlebar button,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar a,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar p,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar span,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar li,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar nav,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar button,
+:root:not(.dark)[data-color-theme="navy"] .titlebar a,
+:root:not(.dark)[data-color-theme="navy"] .titlebar p,
+:root:not(.dark)[data-color-theme="navy"] .titlebar span,
+:root:not(.dark)[data-color-theme="navy"] .titlebar li,
+:root:not(.dark)[data-color-theme="navy"] .titlebar nav,
+:root:not(.dark)[data-color-theme="navy"] .titlebar button,
+:root:not(.dark)[data-color-theme="teal"] .titlebar a,
+:root:not(.dark)[data-color-theme="teal"] .titlebar p,
+:root:not(.dark)[data-color-theme="teal"] .titlebar span,
+:root:not(.dark)[data-color-theme="teal"] .titlebar li,
+:root:not(.dark)[data-color-theme="teal"] .titlebar nav,
+:root:not(.dark)[data-color-theme="teal"] .titlebar button,
+:root:not(.dark)[data-color-theme="amber"] .titlebar a,
+:root:not(.dark)[data-color-theme="amber"] .titlebar p,
+:root:not(.dark)[data-color-theme="amber"] .titlebar span,
+:root:not(.dark)[data-color-theme="amber"] .titlebar li,
+:root:not(.dark)[data-color-theme="amber"] .titlebar nav,
+:root:not(.dark)[data-color-theme="amber"] .titlebar button {
+  color: #475569 !important;
+}
+
+:root:not(.dark)[data-color-theme="mint"] .titlebar svg,
+:root:not(.dark)[data-color-theme="sky"] .titlebar svg,
+:root:not(.dark)[data-color-theme="rose"] .titlebar svg,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar svg,
+:root:not(.dark)[data-color-theme="navy"] .titlebar svg {
+  color: #64748b !important;
+  stroke: #64748b;
+}
+
+:root:not(.dark)[data-color-theme="teal"] .titlebar svg {
+  color: #64748b !important;
+  stroke: #64748b;
+}
+
+:root:not(.dark)[data-color-theme="amber"] .titlebar svg {
+  color: #64748b !important;
+  stroke: #64748b;
+}
+
+:root:not(.dark)[data-color-theme="mint"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="sky"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="rose"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="navy"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="teal"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="amber"] .titlebar-menu-btn,
+:root:not(.dark)[data-color-theme="mint"] .titlebar-icon-btn,
+:root:not(.dark)[data-color-theme="sky"] .titlebar-icon-btn,
+:root:not(.dark)[data-color-theme="rose"] .titlebar-icon-btn,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar-icon-btn,
+:root:not(.dark)[data-color-theme="navy"] .titlebar-icon-btn {
+  color: #64748b;
+}
+
+:root:not(.dark)[data-color-theme="teal"] .titlebar-icon-btn {
+  color: #64748b;
+}
+
+:root:not(.dark)[data-color-theme="amber"] .titlebar-icon-btn {
+  color: #64748b;
+}
+
+:root:not(.dark)[data-color-theme="mint"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="sky"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="rose"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="navy"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="teal"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="amber"] .titlebar-menu-btn:hover,
+:root:not(.dark)[data-color-theme="mint"] .titlebar-icon-btn:hover,
+:root:not(.dark)[data-color-theme="sky"] .titlebar-icon-btn:hover,
+:root:not(.dark)[data-color-theme="rose"] .titlebar-icon-btn:hover,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar-icon-btn:hover,
+:root:not(.dark)[data-color-theme="navy"] .titlebar-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1e293b;
+}
+
+:root:not(.dark)[data-color-theme="teal"] .titlebar-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1e293b;
+}
+
+:root:not(.dark)[data-color-theme="amber"] .titlebar-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1e293b;
+}
+
+:root:not(.dark)[data-color-theme="mint"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="sky"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="rose"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="navy"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="teal"] .titlebar-btn,
+:root:not(.dark)[data-color-theme="amber"] .titlebar-btn {
+  color: #64748b;
+}
+
+:root:not(.dark)[data-color-theme="mint"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="sky"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="rose"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="lavender"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="navy"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="teal"] .titlebar-btn:hover,
+:root:not(.dark)[data-color-theme="amber"] .titlebar-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1e293b;
+}
+
+:root:not(.dark) .titlebar [data-slot="breadcrumb-separator"] {
+  color: rgba(255, 255, 255, 0.5) !important;
 }

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { formatCurrency } from "@/lib/formatCurrency";
+import { cn } from "@/lib/utils";
 import {
   flexRender,
   getCoreRowModel,
@@ -9,6 +10,7 @@ import {
   useReactTable,
   type ColumnDef,
   type SortingState,
+  type RowSelectionState,
 } from "@tanstack/react-table";
 import {
   ArrowRight,
@@ -27,6 +29,11 @@ import {
   User,
   Wallet,
   CalendarDays,
+  Briefcase,
+  Hammer,
+  Calculator,
+  Package,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -52,46 +59,54 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
+    ? "https://firstclassprojects.netlify.app"
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
+
+type SiteMaterialRow = {
+  id: string;
+  siteId: string;
+  productId: string;
+  quantity: number | null;
+  note: string | null;
+  createdAt: string;
+  product: {
+    id: string;
+    name: string;
+    sku: string | null;
+    uom: string | null;
+    unitSize: number | null;
+    category: { id: string; name: string } | null;
+  };
+};
 
 export type SiteRow = {
   id: string;
   name: string;
   code: string | null;
+  client?: string | null;
   location: string | null;
   isActive: boolean;
   createdAt: string;
   supervisorName?: string | null;
   totalWages?: number;
+  totalMaterialCost?: number;
 };
-
-function classNames(...xs: Array<string | false | undefined | null>) {
-  return xs.filter(Boolean).join(" ");
-}
-
-function StatusPill({ active }: { active: boolean }) {
-  return (
-    <div
-      className={classNames(
-        "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wide transition-all",
-        active
-          ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
-          : "bg-zinc-200/50 text-zinc-600 dark:bg-zinc-700/40 dark:text-zinc-400",
-      )}
-    >
-      <span className="mr-1.5">
-        <span
-          className={classNames(
-            "inline-block h-1.5 w-1.5 rounded-full",
-            active
-              ? "bg-emerald-500 dark:bg-emerald-400"
-              : "bg-zinc-400 dark:bg-zinc-500",
-          )}
-        />
-      </span>
-      {active ? "Active" : "Inactive"}
-    </div>
-  );
-}
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -113,56 +128,156 @@ function SiteRowActions({
   onMarkFinished?: () => void;
 }) {
   const navigate = useNavigate();
+  const { token } = useAuth();
+
+  // Site Products dialog state
+  const [showProductsDialog, setShowProductsDialog] = React.useState(false);
+  const [siteProducts, setSiteProducts] = React.useState<SiteMaterialRow[]>([]);
+  const [loadingProducts, setLoadingProducts] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!showProductsDialog || !token) return;
+    setLoadingProducts(true);
+    fetch(`${API_BASE_URL}/api/app/admin/sites/${site.id}/materials`, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => (res.ok ? res.json() : { materials: [] }))
+      .then((data) => setSiteProducts(data.materials || []))
+      .finally(() => setLoadingProducts(false));
+  }, [showProductsDialog, site.id, token]);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" aria-label="Row actions">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem
-          className="flex items-center gap-2"
-          onSelect={(e) => {
-            e.preventDefault();
-            navigate(`/sites/${site.id}`);
-          }}
-        >
-          <ArrowRight className="h-4 w-4" />
-          Manage
-        </DropdownMenuItem>
-        {onRequestPhoto && (
-          <>
-            <DropdownMenuItem
-              className="flex items-center gap-2"
-              onSelect={(e) => {
-                e.preventDefault();
-                onRequestPhoto();
-              }}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon" aria-label="Row actions">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem
+            className="flex items-center gap-2"
+            onSelect={(e) => {
+              e.preventDefault();
+              navigate(`/sites/${site.id}`);
+            }}
+          >
+            <ArrowRight className="h-4 w-4" />
+            Manage
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2"
+            onSelect={(e) => {
+              e.preventDefault();
+              setShowProductsDialog(true);
+            }}
+          >
+            <Package className="h-4 w-4" />
+            Site Products
+          </DropdownMenuItem>
+          {onRequestPhoto && (
+            <>
+              <DropdownMenuItem
+                className="flex items-center gap-2"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  onRequestPhoto();
+                }}
+              >
+                <Camera className="h-4 w-4" />
+                Request Photo
+              </DropdownMenuItem>
+            </>
+          )}
+          {onMarkFinished && site.isActive && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="flex items-center gap-2"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  onMarkFinished();
+                }}
+              >
+                <CheckCircle className="h-4 w-4" />
+                Mark Finished
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Site Products Dialog */}
+      <Dialog open={showProductsDialog} onOpenChange={setShowProductsDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Site Products — {site.name}</DialogTitle>
+            <DialogDescription>
+              Materials expected to be used on this job site.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {loadingProducts ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              </div>
+            ) : siteProducts.length === 0 ? (
+              <p className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                No materials assigned to this site yet.
+              </p>
+            ) : (
+              <Table className="border-collapse [&_th]:border [&_th]:border-slate-200 [&_th]:dark:border-slate-700 [&_td]:border [&_td]:border-slate-200 [&_td]:dark:border-slate-700">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Qty</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {siteProducts.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-slate-400" />
+                          {m.product.name}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {m.product.category ? (
+                          <Badge variant="secondary">
+                            {m.product.category.name}
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-400">\u2014</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {m.product.sku || "\u2014"}
+                      </TableCell>
+                      <TableCell>{m.quantity ?? "\u2014"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/sites/${site.id}`)}
             >
-              <Camera className="h-4 w-4" />
-              Request Photo
-            </DropdownMenuItem>
-          </>
-        )}
-        {onMarkFinished && site.isActive && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="flex items-center gap-2"
-              onSelect={(e) => {
-                e.preventDefault();
-                onMarkFinished();
-              }}
-            >
-              <CheckCircle className="h-4 w-4" />
-              Mark Finished
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+              <ArrowRight className="mr-1 h-4 w-4" />
+              Manage Site
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -170,21 +285,67 @@ interface SitesTableProps {
   data: SiteRow[];
   onRequestPhoto?: (site: SiteRow) => void;
   onMarkFinished?: (site: SiteRow) => void;
+  onSelectionChange?: (selectedSites: SiteRow[]) => void;
 }
 
 export default function SitesTable({
   data,
   onRequestPhoto,
   onMarkFinished,
+  onSelectionChange,
 }: SitesTableProps) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: "code", desc: true },
+  ]);
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
     pageSize: 10,
   });
 
+  // Notify parent of selection changes
+  React.useEffect(() => {
+    if (!onSelectionChange) return;
+    const selectedRows = Object.keys(rowSelection)
+      .filter((k) => rowSelection[k])
+      .map((k) => data[Number(k)])
+      .filter(Boolean);
+    onSelectionChange(selectedRows);
+    // Only re-run when rowSelection actually changes, not on every data reference change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowSelection]);
+
   const columns: ColumnDef<SiteRow>[] = React.useMemo(
     () => [
+      {
+        id: "select",
+        size: 48,
+        header: ({ table }) => (
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300 accent-primary"
+              checked={table.getIsAllPageRowsSelected()}
+              ref={(el) => {
+                if (el) el.indeterminate = table.getIsSomePageRowsSelected();
+              }}
+              onChange={table.getToggleAllPageRowsSelectedHandler()}
+              aria-label="Select all"
+            />
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300 accent-primary"
+              checked={row.getIsSelected()}
+              onChange={row.getToggleSelectedHandler()}
+              aria-label="Select row"
+            />
+          </div>
+        ),
+      },
       {
         id: "code",
         accessorKey: "code",
@@ -239,6 +400,33 @@ export default function SitesTable({
         ),
       },
       {
+        id: "client",
+        accessorKey: "client",
+        size: 150,
+        header: ({ column }) => {
+          const isSorted = column.getIsSorted();
+          return (
+            <button
+              className="flex items-center gap-1 hover:text-foreground transition-colors"
+              onClick={() => column.toggleSorting(isSorted === "asc")}
+            >
+              <Briefcase className="h-4 w-4 text-amber-600" />
+              Client
+              {isSorted === "asc" ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : isSorted === "desc" ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+          );
+        },
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.client ?? "—"}</span>
+        ),
+      },
+      {
         id: "supervisorName",
         accessorKey: "supervisorName",
         size: 180,
@@ -263,17 +451,44 @@ export default function SitesTable({
           </div>
         ),
         cell: ({ row }) => (
-          <span className="text-sm font-medium">
+          <span className="block text-right text-sm font-medium">
             {formatCurrency(row.original.totalWages ?? 0)}
           </span>
         ),
       },
       {
-        id: "status",
-        accessorKey: "isActive",
-        size: 100,
-        header: "Status",
-        cell: ({ row }) => <StatusPill active={row.original.isActive} />,
+        id: "totalMaterialCost",
+        accessorKey: "totalMaterialCost",
+        size: 150,
+        header: () => (
+          <div className="flex items-center gap-2">
+            <Hammer className="h-4 w-4 text-orange-600" />
+            Total Material Cost
+          </div>
+        ),
+        cell: ({ row }) => (
+          <span className="block text-right text-sm font-medium">
+            {formatCurrency(row.original.totalMaterialCost ?? 0)}
+          </span>
+        ),
+      },
+      {
+        id: "totalCost",
+        size: 140,
+        header: () => (
+          <div className="flex items-center gap-2">
+            <Calculator className="h-4 w-4 text-rose-600" />
+            Total Cost
+          </div>
+        ),
+        cell: ({ row }) => (
+          <span className="block text-right text-sm font-semibold">
+            {formatCurrency(
+              (row.original.totalWages ?? 0) +
+                (row.original.totalMaterialCost ?? 0),
+            )}
+          </span>
+        ),
       },
       {
         id: "createdAt",
@@ -330,9 +545,12 @@ export default function SitesTable({
     state: {
       sorting,
       pagination,
+      rowSelection,
     },
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -349,12 +567,16 @@ export default function SitesTable({
                   <TableHead
                     key={header.id}
                     style={{
-                      width:
-                        header.column.getSize() !== 150
-                          ? header.column.getSize()
-                          : undefined,
+                      width: header.column.getSize(),
+                      minWidth: header.column.id === "select" ? 48 : undefined,
+                      maxWidth: header.column.id === "select" ? 48 : undefined,
                     }}
-                    className="border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-700"
+                    className={cn(
+                      "border border-zinc-200 text-xs font-semibold uppercase tracking-wide dark:border-zinc-700",
+                      header.column.id === "select"
+                        ? "px-3 py-2 text-center"
+                        : "px-3 py-1",
+                    )}
                   >
                     {header.isPlaceholder
                       ? null
@@ -379,12 +601,16 @@ export default function SitesTable({
                     <TableCell
                       key={cell.id}
                       style={{
-                        width:
-                          cell.column.getSize() !== 150
-                            ? cell.column.getSize()
-                            : undefined,
+                        width: cell.column.getSize(),
+                        minWidth: cell.column.id === "select" ? 48 : undefined,
+                        maxWidth: cell.column.id === "select" ? 48 : undefined,
                       }}
-                      className="border border-zinc-200 px-3 py-1 dark:border-zinc-700"
+                      className={cn(
+                        "border border-zinc-200 dark:border-zinc-700",
+                        cell.column.id === "select"
+                          ? "px-3 py-2 text-center"
+                          : "px-3 py-1",
+                      )}
                     >
                       {flexRender(
                         cell.column.columnDef.cell,

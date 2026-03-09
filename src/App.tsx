@@ -16,10 +16,23 @@ import TimesheetsPage from "./pages/TimesheetsPage";
 import SupervisorTimesheetsPage from "./pages/SupervisorTimesheetsPage";
 import AdminSitePhotosPage from "./pages/AdminSitePhotosPage";
 import AdminAttendanceScansPage from "./pages/AdminAttendanceScansPage";
+import AdminManualScanPage from "./pages/AdminManualScanPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
+import TransferEmployeePage from "./pages/TransferEmployeePage";
+import ProductsPage from "./pages/ProductsPage";
+import OrdersPage from "./pages/OrdersPage";
+import AdminSuppliersPage from "./pages/AdminSuppliersPage";
+import AdminProductCategoriesPage from "./pages/AdminProductCategoriesPage";
+import AdminProcurementProductsPage from "./pages/AdminProcurementProductsPage";
+import AdminSupplierPricesPage from "./pages/AdminSupplierPricesPage";
+import AdminMaterialOrdersPage from "./pages/AdminMaterialOrdersPage";
+import AdminFortnightMeetingsPage from "./pages/AdminFortnightMeetingsPage";
+import AdminOvertimePage from "./pages/AdminOvertimePage";
+import AdminOvertimePricesPage from "./pages/AdminOvertimePricesPage";
+import SupervisorsPage from "./pages/SupervisorsPage";
 import { useAuth } from "./contexts/AuthContext";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -41,12 +54,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="flex flex-col">
-        <TitleBar />
-        <OfflineBanner />
-        <main className="flex-1 overflow-auto p-4">{children}</main>
-      </SidebarInset>
+      <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+        <AppSidebar />
+        <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+          <TitleBar />
+          <OfflineBanner />
+          <main className="flex-1 overflow-auto w-full py-3 px-4 min-h-0">
+            {children}
+          </main>
+        </div>
+      </div>
     </SidebarProvider>
   );
 }
@@ -89,6 +106,52 @@ function App() {
                     />
                     <Route path="/users" element={<UsersPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
+                    <Route
+                      path="/admin/transfer-employee"
+                      element={<TransferEmployeePage />}
+                    />
+                    <Route
+                      path="/admin/manual-scan"
+                      element={<AdminManualScanPage />}
+                    />
+                    <Route path="/products" element={<ProductsPage />} />
+                    <Route path="/orders" element={<OrdersPage />} />
+                    <Route
+                      path="/admin/suppliers"
+                      element={<AdminSuppliersPage />}
+                    />
+                    <Route
+                      path="/admin/product-categories"
+                      element={<AdminProductCategoriesPage />}
+                    />
+                    <Route
+                      path="/admin/procurement-products"
+                      element={<AdminProcurementProductsPage />}
+                    />
+                    <Route
+                      path="/admin/supplier-prices"
+                      element={<AdminSupplierPricesPage />}
+                    />
+                    <Route
+                      path="/admin/material-orders"
+                      element={<AdminMaterialOrdersPage />}
+                    />
+                    <Route
+                      path="/admin/fortnight-meetings"
+                      element={<AdminFortnightMeetingsPage />}
+                    />
+                    <Route
+                      path="/admin/overtime"
+                      element={<AdminOvertimePage />}
+                    />
+                    <Route
+                      path="/admin/overtime-prices"
+                      element={<AdminOvertimePricesPage />}
+                    />
+                    <Route
+                      path="/admin/supervisors"
+                      element={<SupervisorsPage />}
+                    />
                   </Routes>
                 </AppLayout>
               </ProtectedRoute>

@@ -30,14 +30,15 @@ function formatCurrencyPrint(amount: number): string {
 export function generateSitesPrintHTML(sites: SiteRow[]): string {
   const tableRows = sites
     .map((site) => {
-      const statusClass = site.isActive ? "active" : "inactive";
       return `
         <tr>
-          <td class="code-col">${escapeHTML(site.code ?? "—")}</td>
+          <td class="code-col">${escapeHTML(site.code ?? "\u2014")}</td>
           <td class="name-col">${escapeHTML(site.name)}</td>
-          <td class="supervisor-col">${escapeHTML(site.supervisorName ?? "—")}</td>
+          <td class="client-col">${escapeHTML(site.client ?? "\u2014")}</td>
+          <td class="supervisor-col">${escapeHTML(site.supervisorName ?? "\u2014")}</td>
           <td class="wages-col">${formatCurrencyPrint(site.totalWages ?? 0)}</td>
-          <td class="status-col"><span class="status-pill ${statusClass}">${site.isActive ? "Active" : "Inactive"}</span></td>
+          <td class="material-col">${formatCurrencyPrint(site.totalMaterialCost ?? 0)}</td>
+          <td class="total-col">${formatCurrencyPrint((site.totalWages ?? 0) + (site.totalMaterialCost ?? 0))}</td>
           <td class="created-col">${formatDate(site.createdAt)}</td>
         </tr>
       `;
@@ -46,6 +47,11 @@ export function generateSitesPrintHTML(sites: SiteRow[]): string {
 
   // Calculate totals
   const totalWagesSum = sites.reduce((sum, s) => sum + (s.totalWages ?? 0), 0);
+  const totalMaterialSum = sites.reduce(
+    (sum, s) => sum + (s.totalMaterialCost ?? 0),
+    0,
+  );
+  const totalCostSum = totalWagesSum + totalMaterialSum;
   const activeSites = sites.filter((s) => s.isActive).length;
 
   return `
@@ -116,7 +122,7 @@ export function generateSitesPrintHTML(sites: SiteRow[]): string {
         /* Summary cards */
         .summary-cards {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(5, 1fr);
           gap: 12px;
           margin-bottom: 20px;
         }
@@ -166,26 +172,35 @@ export function generateSitesPrintHTML(sites: SiteRow[]): string {
         }
         .main-table .code-col { 
           font-family: monospace;
-          width: 100px;
+          width: 90px;
         }
         .main-table .name-col { 
           font-weight: 500;
-          min-width: 180px;
+          min-width: 140px;
+        }
+        .main-table .client-col { 
+          min-width: 120px;
         }
         .main-table .supervisor-col { 
-          min-width: 150px;
+          min-width: 120px;
         }
         .main-table .wages-col { 
           text-align: right;
           font-weight: 600;
-          min-width: 120px;
+          min-width: 100px;
         }
-        .main-table .status-col { 
-          text-align: center;
-          width: 90px;
+        .main-table .material-col { 
+          text-align: right;
+          font-weight: 600;
+          min-width: 100px;
+        }
+        .main-table .total-col { 
+          text-align: right;
+          font-weight: 700;
+          min-width: 100px;
         }
         .main-table .created-col { 
-          width: 100px;
+          width: 90px;
         }
         .status-pill {
           display: inline-flex;
@@ -277,6 +292,14 @@ export function generateSitesPrintHTML(sites: SiteRow[]): string {
             <div class="summary-label">Total Wages</div>
             <div class="summary-value">${formatCurrencyPrint(totalWagesSum)}</div>
           </div>
+          <div class="summary-card">
+            <div class="summary-label">Total Material Cost</div>
+            <div class="summary-value">${formatCurrencyPrint(totalMaterialSum)}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Total Cost</div>
+            <div class="summary-value">${formatCurrencyPrint(totalCostSum)}</div>
+          </div>
         </div>
         
         <div class="table-container">
@@ -285,9 +308,11 @@ export function generateSitesPrintHTML(sites: SiteRow[]): string {
               <tr>
                 <th class="code-col">Job Number</th>
                 <th class="name-col">Name</th>
+                <th class="client-col">Client</th>
                 <th class="supervisor-col">Supervisor</th>
                 <th class="wages-col">Total Wages</th>
-                <th class="status-col">Status</th>
+                <th class="material-col">Material Cost</th>
+                <th class="total-col">Total Cost</th>
                 <th class="created-col">Created</th>
               </tr>
             </thead>

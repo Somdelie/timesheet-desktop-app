@@ -48,7 +48,7 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
+  --background: oklch(0.975 0.006 264.695);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
@@ -82,7 +82,7 @@
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
+  --background: oklch(0.145 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
   --card-foreground: oklch(0.984 0.003 247.858);
@@ -115,6 +115,56 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+/* Theme overrides — after .dark so they apply in both modes */
+[data-color-theme="green"],
+[data-color-theme="mint"] {
+  --primary: #16a34a !important;
+  --ring: #16a34a !important;
+  --sidebar-primary: #16a34a !important;
+}
+[data-color-theme="blue"],
+[data-color-theme="sky"] {
+  --primary: #2563eb !important;
+  --ring: #2563eb !important;
+  --sidebar-primary: #2563eb !important;
+}
+[data-color-theme="slate"] {
+  --primary: #334155 !important;
+  --ring: #334155 !important;
+  --sidebar-primary: #334155 !important;
+}
+[data-color-theme="purple"],
+[data-color-theme="lavender"] {
+  --primary: #7c3aed !important;
+  --ring: #7c3aed !important;
+  --sidebar-primary: #7c3aed !important;
+}
+[data-color-theme="rose"] {
+  --primary: #e11d48 !important;
+  --ring: #e11d48 !important;
+  --sidebar-primary: #e11d48 !important;
+}
+[data-color-theme="navy"] {
+  --primary: #1e3a5f !important;
+  --ring: #1e3a5f !important;
+  --sidebar-primary: #1e3a5f !important;
+}
+[data-color-theme="teal"] {
+  --primary: #0d9488 !important;
+  --ring: #0d9488 !important;
+  --sidebar-primary: #0d9488 !important;
+}
+[data-color-theme="orange"] {
+  --primary: #ea580c !important;
+  --ring: #ea580c !important;
+  --sidebar-primary: #ea580c !important;
+}
+[data-color-theme="amber"] {
+  --primary: #ea580c !important;
+  --ring: #ea580c !important;
+  --sidebar-primary: #ea580c !important;
+}
+
 @layer utilities {
   .animate-wave {
     animation: wave 6s linear infinite;
@@ -139,6 +189,11 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
   }
   body {
     @apply bg-background text-foreground;

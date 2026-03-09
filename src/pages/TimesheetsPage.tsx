@@ -22,14 +22,11 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { formatCurrency } from "@/lib/formatCurrency";
-import { printTimesheet, downloadTimesheetCSV } from "@/lib/timesheetExport";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectTrigger,
@@ -45,30 +42,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 
+import TimesheetDetailSheet, {
+  type TimesheetAction,
+} from "@/components/timesheets/TimesheetDetailSheet";
 import TimesheetGrid from "@/components/timesheets/TimesheetGrid";
 import type { TimesheetGridModel } from "@/components/timesheets/gridModel";
 import { normalizeTimesheetToGrid } from "@/lib/normalizeTimesheetDetail";
+import {
+  generateForemanSummaryPdf,
+  generateTimesheetPdf,
+  downloadTimesheetPdf,
+  printForemanSummary,
+  type ForemanSummaryData,
+  type ForemanTimesheetData,
+} from "@/lib/generateTimesheetPdf";
 
 const API_BASE =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -131,6 +127,12 @@ type AdminRow = {
   supervisor?: { id: string; name: string } | null;
   totalWorkerDays?: number | null;
   totalWorkerWages?: number | null;
+  foremanDays?: number | null;
+  foremanWages?: number | null;
+  teamDays?: number | null;
+  teamWages?: number | null;
+  totalDeductions?: number | null;
+  totalOvertimeCost?: number | null;
   sites?: Array<{ id: string; code?: string | null; name: string }>;
   rowKey?: string;
 };
@@ -217,21 +219,6 @@ function SiteBadges({
   );
 }
 
-interface TimesheetAction {
-  id: string;
-  label: string;
-  variant?:
-    | "default"
-    | "destructive"
-    | "outline"
-    | "secondary"
-    | "ghost"
-    | "link";
-  canPerform: (status: string) => boolean;
-  handler: (reason?: string) => Promise<void>;
-  requiresReason?: boolean;
-}
-
 export default function TimesheetPage() {
   const { token } = useAuth();
   const nowYearUTC = useMemo(() => new Date().getUTCFullYear(), []);
@@ -265,16 +252,24 @@ export default function TimesheetPage() {
   const [detailErr, setDetailErr] = useState<string | null>(null);
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
 
-  // Action state
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [actionErr, setActionErr] = useState<string | null>(null);
-  const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
-  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
-  const [reasonText, setReasonText] = useState("");
+  // Foreman totals section collapsed/expanded
+  const [foremanTotalsExpanded, setForemanTotalsExpanded] = useState(false);
+
+  // Foreman PDF generation state
+  const [foremanPdfGenerating, setForemanPdfGenerating] = useState<
+    string | null
+  >(null);
 
   const totalWages = useMemo(() => {
     return rows.reduce(
       (sum, row) => sum + Number(row.totalWorkerWages ?? 0),
+      0,
+    );
+  }, [rows]);
+
+  const totalOvertime = useMemo(() => {
+    return rows.reduce(
+      (sum, row) => sum + Number(row.totalOvertimeCost ?? 0),
       0,
     );
   }, [rows]);
@@ -289,6 +284,189 @@ export default function TimesheetPage() {
     if (!gridModel) return null;
     return <TimesheetGrid model={gridModel} />;
   }, [gridModel]);
+
+  // Foreman totals: group all sites by foreman and sum wages for quick overview
+  const foremanTotals = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        foremanId: string;
+        foremanName: string;
+        sitesCount: number;
+        siteIds: string[];
+        foremanDays: number;
+        foremanWages: number;
+        teamDays: number;
+        teamWages: number;
+        totalDeductions: number;
+        totalOvertimeCost: number;
+        grandTotal: number;
+      }
+    >();
+    for (const row of rows) {
+      const id = row.foreman?.id ?? "unknown";
+      const name = row.foreman?.name ?? "Unknown";
+      const existing = map.get(id) ?? {
+        foremanId: id,
+        foremanName: name,
+        sitesCount: 0,
+        siteIds: [],
+        foremanDays: 0,
+        foremanWages: 0,
+        teamDays: 0,
+        teamWages: 0,
+        totalDeductions: 0,
+        totalOvertimeCost: 0,
+        grandTotal: 0,
+      };
+      if (row.sites) {
+        for (const site of row.sites) {
+          if (!existing.siteIds.includes(site.id)) {
+            existing.siteIds.push(site.id);
+          }
+        }
+      }
+      existing.sitesCount = existing.siteIds.length;
+      existing.foremanDays += Number(row.foremanDays ?? 0);
+      existing.foremanWages += Number(row.foremanWages ?? 0);
+      existing.teamDays += Number(row.teamDays ?? 0);
+      existing.teamWages += Number(row.teamWages ?? 0);
+      existing.totalOvertimeCost += Number(row.totalOvertimeCost ?? 0);
+      existing.totalDeductions = Math.max(
+        existing.totalDeductions,
+        Number(row.totalDeductions ?? 0),
+      );
+      existing.grandTotal =
+        existing.foremanWages +
+        existing.teamWages +
+        existing.totalOvertimeCost -
+        existing.totalDeductions;
+      map.set(id, existing);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.foremanName.localeCompare(b.foremanName),
+    );
+  }, [rows]);
+
+  // Handler for generating foreman summary PDF/Print
+  const handleForemanPdfAction = useCallback(
+    async (
+      foremanData: (typeof foremanTotals)[0],
+      action: "print" | "download",
+    ) => {
+      if (!periodId) {
+        toast.error("No period selected");
+        return;
+      }
+
+      setForemanPdfGenerating(foremanData.foremanId);
+
+      try {
+        const timesheets: ForemanTimesheetData[] = [];
+        const siteBreakdown: ForemanSummaryData["sites"] = [];
+
+        for (const siteId of foremanData.siteIds) {
+          const timesheetId = `${periodId}_${foremanData.foremanId}_${siteId}`;
+          const url = `${API_BASE}/api/app/admin/timesheets/${encodeURIComponent(timesheetId)}?siteId=${encodeURIComponent(siteId)}`;
+
+          const res = await fetch(url, {
+            cache: "no-store",
+            headers: {
+              accept: "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (!res.ok) {
+            console.warn(`Failed to fetch timesheet for site ${siteId}`);
+            continue;
+          }
+
+          const payload = await res.json();
+          const tsDetail = payload?.timesheet ?? payload;
+
+          if (!tsDetail) continue;
+
+          const gridData = normalizeTimesheetToGrid(tsDetail as any);
+
+          const siteRow = rows.find(
+            (r) =>
+              r.foreman?.id === foremanData.foremanId &&
+              r.sites?.some((s) => s.id === siteId),
+          );
+          const siteInfo = siteRow?.sites?.find((s) => s.id === siteId);
+
+          timesheets.push({
+            siteId,
+            siteName: siteInfo?.name ?? tsDetail.sites?.[0]?.name ?? "Site",
+            siteCode: siteInfo?.code ?? tsDetail.sites?.[0]?.code,
+            gridModel: gridData,
+            supervisorName: siteRow?.supervisor?.name,
+          });
+
+          siteBreakdown.push({
+            siteId,
+            siteName: siteInfo?.name ?? "Site",
+            siteCode: siteInfo?.code ?? undefined,
+            foremanDays: Number(siteRow?.foremanDays ?? 0),
+            foremanWages: Number(siteRow?.foremanWages ?? 0),
+            teamDays: Number(siteRow?.teamDays ?? 0),
+            teamWages: Number(siteRow?.teamWages ?? 0),
+            totalWages: Number(siteRow?.totalWorkerWages ?? 0),
+          });
+        }
+
+        if (timesheets.length === 0) {
+          toast.error("No timesheet data found for this foreman");
+          return;
+        }
+
+        const [startISO, endISO] = periodId.split("_");
+
+        const summaryData: ForemanSummaryData = {
+          foremanId: foremanData.foremanId,
+          foremanName: foremanData.foremanName,
+          startISO: startISO ?? "",
+          endISO: endISO ?? "",
+          sitesCount: foremanData.sitesCount,
+          foremanDays: foremanData.foremanDays,
+          foremanWages: foremanData.foremanWages,
+          teamDays: foremanData.teamDays,
+          teamWages: foremanData.teamWages,
+          grandTotal: foremanData.grandTotal,
+          sites: siteBreakdown,
+        };
+
+        if (action === "download") {
+          const pdfBytes = await generateForemanSummaryPdf(
+            summaryData,
+            timesheets,
+          );
+          const filename = `foreman-summary-${foremanData.foremanName.replace(/\s+/g, "-")}-${startISO}.pdf`;
+          downloadTimesheetPdf(pdfBytes, filename);
+          toast.success("PDF downloaded");
+        } else {
+          const printData = timesheets.map((ts) => ({
+            gridModel: ts.gridModel,
+            meta: {
+              foremanName: foremanData.foremanName,
+              contractManagerName: ts.supervisorName,
+              startDate: startISO,
+              endDate: endISO,
+              sites: [{ code: ts.siteCode, name: ts.siteName }],
+            },
+          }));
+          printForemanSummary(summaryData, printData);
+        }
+      } catch (err: any) {
+        console.error("Foreman PDF generation error:", err);
+        toast.error(err?.message ?? "Failed to generate PDF");
+      } finally {
+        setForemanPdfGenerating(null);
+      }
+    },
+    [periodId, rows, token],
+  );
 
   // Column definitions for Admin table
   const adminColumns = useMemo<ColumnDef<AdminRow>[]>(
@@ -702,7 +880,6 @@ export default function TimesheetPage() {
       setDetail(null);
       setDetailErr(null);
       setDetailLoading(true);
-      setActionErr(null);
 
       try {
         const url = `${API_BASE}/api/app/admin/timesheets/${encodeURIComponent(id)}${siteId ? `?siteId=${encodeURIComponent(siteId)}` : ""}`;
@@ -760,13 +937,27 @@ export default function TimesheetPage() {
   }
 
   const actions = useMemo((): TimesheetAction[] => {
-    const base = `${API_BASE}/api/app/supervisor`;
+    const base = `${API_BASE}/api/app/admin`;
+
+    let endISO: string | null = null;
+    let startISO: string | null = null;
+    if (detail) {
+      endISO = ((detail as Record<string, unknown>)?.endISO as string) ?? null;
+      startISO =
+        ((detail as Record<string, unknown>)?.startISO as string) ?? null;
+    } else if (activeId) {
+      const parts = activeId.split("_");
+      if (parts.length >= 2) {
+        startISO = parts[0];
+        endISO = parts[1];
+      }
+    }
 
     return [
       {
         id: "approve",
         label: "Approve",
-        canPerform: (s) => s === "SUBMITTED",
+        canPerform: (s) => s === "SUBMITTED" || s === "ACCEPTED",
         handler: async () => {
           if (!activeId) return;
           await postJson(
@@ -781,7 +972,7 @@ export default function TimesheetPage() {
         id: "reject",
         label: "Reject",
         variant: "destructive",
-        canPerform: (s) => s === "SUBMITTED",
+        canPerform: (s) => s === "SUBMITTED" || s === "ACCEPTED",
         requiresReason: true,
         handler: async (reason) => {
           if (!activeId) return;
@@ -801,6 +992,35 @@ export default function TimesheetPage() {
         canPerform: (s) => s === "APPROVED",
         handler: async () => {
           if (!activeId) return;
+
+          // Generate and download PDF archive before marking as paid
+          if (gridModel) {
+            try {
+              const dto = (detail as any)?.timesheet ?? detail;
+              const foremanName =
+                dto?.foremanName ?? dto?.foreman?.user?.name ?? "Foreman";
+              const siteName = dto?.sites?.[0]?.name ?? dto?.siteName ?? "Site";
+              const siteCode = dto?.sites?.[0]?.code ?? dto?.siteCode ?? "";
+
+              const pdfBytes = await generateTimesheetPdf(gridModel, {
+                foremanName,
+                siteName,
+                siteCode,
+                startISO: startISO ?? undefined,
+                endISO: endISO ?? undefined,
+                status: "PAID",
+              });
+
+              const filename = `timesheet-${foremanName.replace(/\s+/g, "-")}-${siteName.replace(/\s+/g, "-")}-${startISO ?? "period"}.pdf`;
+              downloadTimesheetPdf(pdfBytes, filename);
+            } catch (pdfErr) {
+              console.error("PDF generation failed:", pdfErr);
+              toast.error(
+                "Failed to generate PDF archive. Timesheet will still be marked as paid.",
+              );
+            }
+          }
+
           await postJson(
             `${base}/timesheets/${encodeURIComponent(activeId)}/paid`,
           );
@@ -810,83 +1030,7 @@ export default function TimesheetPage() {
         },
       },
     ];
-  }, [activeId, loadList, refreshDetail, token]);
-
-  async function runAction(actionId: string) {
-    const action = actions.find((a) => a.id === actionId);
-    if (!action || !detail) return;
-
-    const detailStatus =
-      ((detail as Record<string, unknown>)?.status as string) ?? "—";
-
-    if (!action.canPerform(detailStatus)) {
-      toast.info("Action not available for this status");
-      return;
-    }
-
-    if (action.requiresReason) {
-      setPendingActionId(actionId);
-      setActionErr(null);
-      setReasonText("");
-      setReasonDialogOpen(true);
-      return;
-    }
-
-    setActionErr(null);
-    setActionLoading(actionId);
-    try {
-      await action.handler();
-      toast.success(action.label);
-      await refreshDetail();
-    } catch (err) {
-      console.error(err);
-      setActionErr(err instanceof Error ? err.message : "Action failed");
-      toast.error("Action failed");
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
-  async function confirmRejectionWithReason() {
-    const actionId = pendingActionId;
-    if (!actionId) return;
-
-    const action = actions.find((a) => a.id === actionId);
-    if (!action) return;
-
-    const reason = reasonText.trim();
-    if (!reason) {
-      toast.error("Please enter a reason");
-      return;
-    }
-
-    setActionErr(null);
-    setActionLoading(actionId);
-    try {
-      await action.handler(reason);
-      toast.success(action.label);
-
-      setReasonDialogOpen(false);
-      setReasonText("");
-      setPendingActionId(null);
-
-      await refreshDetail();
-    } catch (err) {
-      console.error(err);
-      setActionErr(err instanceof Error ? err.message : "Action failed");
-      toast.error("Action failed");
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
-  const SUGGESTED_REASONS = [
-    "Missing documentation",
-    "Incorrect hours",
-    "Incomplete information",
-    "Cannot verify details",
-    "Duplicate entry",
-  ];
+  }, [activeId, detail, gridModel, loadList, refreshDetail, token]);
 
   const reset = () => {
     setQ("");
@@ -894,75 +1038,6 @@ export default function TimesheetPage() {
     setSupervisorId("ALL");
     if (periods[0]?.id) setPeriodId(periods[0].id);
   };
-
-  const detailStatus =
-    ((detail as Record<string, unknown>)?.status as string) ?? "—";
-  const sites =
-    ((detail as Record<string, unknown>)?.sites as Array<{
-      id: string;
-      code?: string | null;
-      name: string;
-    }>) ?? [];
-
-  const foremanDisplay = String(
-    (gridModel as Record<string, unknown>)?.foremanName ??
-      (detail as Record<string, unknown>)?.foremanName ??
-      ((detail as Record<string, unknown>)?.foreman as Record<string, unknown>)
-        ?.name ??
-      "—",
-  ).trim();
-
-  const contractManagerDisplay = String(
-    (detail as Record<string, unknown>)?.supervisorName ??
-      (
-        (detail as Record<string, unknown>)?.supervisor as Record<
-          string,
-          unknown
-        >
-      )?.name ??
-      "—",
-  ).trim();
-
-  // Totals from grid model
-  const foremanTotals = {
-    days: Number(
-      (
-        (gridModel as Record<string, unknown>)?.totals as Record<
-          string,
-          unknown
-        >
-      )?.foremanDays ?? 0,
-    ),
-    pay: Number(
-      (
-        (gridModel as Record<string, unknown>)?.totals as Record<
-          string,
-          unknown
-        >
-      )?.foremanPay ?? 0,
-    ),
-  };
-  const teamTotals = {
-    days: Number(
-      (
-        (gridModel as Record<string, unknown>)?.totals as Record<
-          string,
-          unknown
-        >
-      )?.teamDays ?? 0,
-    ),
-    pay: Number(
-      (
-        (gridModel as Record<string, unknown>)?.totals as Record<
-          string,
-          unknown
-        >
-      )?.teamPay ?? 0,
-    ),
-  };
-
-  const totalDays = foremanTotals.days + teamTotals.days;
-  const totalPay = foremanTotals.pay + teamTotals.pay;
 
   return (
     <div className="space-y-4">
@@ -978,6 +1053,15 @@ export default function TimesheetPage() {
           <div className="text-sm text-muted-foreground whitespace-nowrap">
             Total wages:{" "}
             <span className="font-semibold">{money(totalWages)}</span>
+            {totalOvertime > 0 && (
+              <>
+                {" "}
+                • Overtime:{" "}
+                <span className="font-semibold text-orange-600 dark:text-orange-400">
+                  {money(totalOvertime)}
+                </span>
+              </>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -1080,6 +1164,193 @@ export default function TimesheetPage() {
           <div className="text-sm text-rose-600 dark:text-rose-400">{err}</div>
         ) : null}
       </div>
+
+      {/* Foreman Totals Summary */}
+      {foremanTotals.length > 0 && !loading && (
+        <div className="rounded border bg-card overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
+            onClick={() => setForemanTotalsExpanded(!foremanTotalsExpanded)}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium">Foreman Totals</span>
+              <Badge variant="secondary" className="text-xs">
+                {foremanTotals.length} foremen
+              </Badge>
+              <span className="text-sm text-muted-foreground">•</span>
+              <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                Net Pay Total:{" "}
+                {money(foremanTotals.reduce((s, f) => s + f.grandTotal, 0))}
+              </span>
+              {foremanTotals.reduce((s, f) => s + f.totalOvertimeCost, 0) >
+                0 && (
+                <>
+                  <span className="text-sm text-muted-foreground">•</span>
+                  <span className="text-sm text-orange-600 dark:text-orange-400">
+                    Overtime:{" "}
+                    {money(
+                      foremanTotals.reduce(
+                        (s, f) => s + f.totalOvertimeCost,
+                        0,
+                      ),
+                    )}
+                  </span>
+                </>
+              )}
+              {foremanTotals.reduce((s, f) => s + f.totalDeductions, 0) > 0 && (
+                <>
+                  <span className="text-sm text-muted-foreground">•</span>
+                  <span className="text-sm text-amber-600 dark:text-amber-400">
+                    Deductions:{" "}
+                    {money(
+                      foremanTotals.reduce((s, f) => s + f.totalDeductions, 0),
+                    )}
+                  </span>
+                </>
+              )}
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 text-muted-foreground transition-transform duration-300 ${
+                foremanTotalsExpanded ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          <div
+            className="grid transition-all duration-300 ease-in-out"
+            style={{
+              gridTemplateRows: foremanTotalsExpanded ? "1fr" : "0fr",
+            }}
+          >
+            <div className="overflow-hidden">
+              <div className="border-t max-h-72 overflow-y-auto overflow-x-auto">
+                <Table className="border-collapse min-w-200">
+                  <TableHeader className="bg-muted/60 sticky top-0">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="px-3 py-2 text-xs font-semibold border border-zinc-200 dark:border-zinc-700">
+                        Foreman
+                      </TableHead>
+                      <TableHead className="px-3 py-2 text-xs font-semibold text-center border border-zinc-200 dark:border-zinc-700">
+                        Sites
+                      </TableHead>
+                      <TableHead className="px-3 py-2 text-xs font-semibold text-right border border-zinc-200 dark:border-zinc-700">
+                        Foreman Days
+                      </TableHead>
+                      <TableHead className="px-3 py-2 text-xs font-semibold text-right border border-zinc-200 dark:border-zinc-700">
+                        Foreman Amount
+                      </TableHead>
+                      <TableHead className="px-3 py-2 text-xs font-semibold text-right border border-zinc-200 dark:border-zinc-700">
+                        Team Days
+                      </TableHead>
+                      <TableHead className="px-3 py-2 text-xs font-semibold text-right border border-zinc-200 dark:border-zinc-700">
+                        Team Amount
+                      </TableHead>
+                      <TableHead className="px-3 py-2 text-xs font-semibold text-right border border-zinc-200 dark:border-zinc-700">
+                        Overtime
+                      </TableHead>
+                      <TableHead className="px-3 py-2 text-xs font-semibold text-right border border-zinc-200 dark:border-zinc-700">
+                        Deductions
+                      </TableHead>
+                      <TableHead className="px-3 py-2 text-xs font-semibold text-right border border-zinc-200 dark:border-zinc-700">
+                        Net Pay
+                      </TableHead>
+                      <TableHead className="px-3 py-2 text-xs font-semibold text-center border border-zinc-200 dark:border-zinc-700">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {foremanTotals.map((ft) => (
+                      <TableRow
+                        key={ft.foremanId}
+                        className="hover:bg-muted/30"
+                      >
+                        <TableCell className="px-3 py-2 text-sm font-medium border border-zinc-200 dark:border-zinc-700">
+                          {ft.foremanName}
+                        </TableCell>
+                        <TableCell className="px-3 py-2 text-sm text-center border border-zinc-200 dark:border-zinc-700">
+                          {ft.sitesCount}
+                        </TableCell>
+                        <TableCell className="px-3 py-2 text-sm text-right border border-zinc-200 dark:border-zinc-700">
+                          {ft.foremanDays}
+                        </TableCell>
+                        <TableCell className="px-3 py-2 text-sm text-right border border-zinc-200 dark:border-zinc-700">
+                          {money(ft.foremanWages)}
+                        </TableCell>
+                        <TableCell className="px-3 py-2 text-sm text-right border border-zinc-200 dark:border-zinc-700">
+                          {ft.teamDays}
+                        </TableCell>
+                        <TableCell className="px-3 py-2 text-sm text-right border border-zinc-200 dark:border-zinc-700">
+                          {money(ft.teamWages)}
+                        </TableCell>
+                        <TableCell className="px-3 py-2 text-sm text-right border border-zinc-200 dark:border-zinc-700">
+                          {ft.totalOvertimeCost > 0 ? (
+                            <span className="text-orange-600 dark:text-orange-400">
+                              {money(ft.totalOvertimeCost)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="px-3 py-2 text-sm text-right border border-zinc-200 dark:border-zinc-700">
+                          {ft.totalDeductions > 0 ? (
+                            <span className="text-amber-600 dark:text-amber-400">
+                              -{money(ft.totalDeductions)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="px-3 py-2 text-sm text-right font-bold text-emerald-600 dark:text-emerald-400 border border-zinc-200 dark:border-zinc-700">
+                          {money(ft.grandTotal)}
+                        </TableCell>
+                        <TableCell className="px-2 py-1 border border-zinc-200 dark:border-zinc-700">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              disabled={foremanPdfGenerating === ft.foremanId}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleForemanPdfAction(ft, "print");
+                              }}
+                              title="Print"
+                            >
+                              {foremanPdfGenerating === ft.foremanId ? (
+                                <Spinner className="h-4 w-4" />
+                              ) : (
+                                <Printer className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              disabled={foremanPdfGenerating === ft.foremanId}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleForemanPdfAction(ft, "download");
+                              }}
+                              title="Download PDF"
+                            >
+                              {foremanPdfGenerating === ft.foremanId ? (
+                                <Spinner className="h-4 w-4" />
+                              ) : (
+                                <Download className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="border bg-card">
         <div className="overflow-x-auto">
@@ -1241,368 +1512,21 @@ export default function TimesheetPage() {
         </div>
       </div>
 
-      {/* Detail Sheet */}
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent
-          side="bottom"
-          className="w-full h-full p-0 m-0 gap-0 overflow-hidden overflow-y-scroll"
-        >
-          <SheetHeader className="px-3 pt-6">
-            <SheetTitle className="hidden">Timesheet</SheetTitle>
-
-            {detail && (
-              <div className="rounded border py-2 mt-4 text-left flex items-start justify-between px-3 gap-3">
-                <div className="text-sm text-muted-foreground flex flex-col gap-1 flex-1 pr-4">
-                  <span>Fortnight Range</span>
-                  <div className="font-semibold py-1 border rounded px-3">
-                    {prettyRange(
-                      String(
-                        (detail as Record<string, unknown>).startISO ?? "",
-                      ),
-                      String((detail as Record<string, unknown>).endISO ?? ""),
-                    )}{" "}
-                    (Sat–Fri)
-                  </div>
-
-                  <div className="pt-2">
-                    <span className="text-xs font-bold">
-                      {detailStatus || "—"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1 flex-1 px-4 border-l-2 border-card">
-                  <div className="text-sm text-muted-foreground">Foreman</div>
-                  <div className="font-medium py-1 border rounded px-3">
-                    {foremanDisplay}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1 border-l-2 border-card px-4 flex-1">
-                  <div className="text-sm text-muted-foreground">
-                    Contract Manager
-                  </div>
-                  <div className="font-medium py-1 border rounded px-3">
-                    {contractManagerDisplay}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1 border-l-2 border-card px-4 flex-1">
-                  <div className="text-sm text-muted-foreground">Site Info</div>
-                  <div className="mt-1 flex flex-col gap-1">
-                    {Array.isArray(sites) && sites.length ? (
-                      sites.map((s) => {
-                        const code = String(s?.code ?? "").trim();
-                        const name = String(s?.name ?? "").trim();
-                        return (
-                          <div
-                            key={String(s?.id ?? `${code}-${name}`)}
-                            className="font-medium py-1 border rounded px-3 w-full"
-                          >
-                            {(code ? `${code} · ` : "") + (name || "—")}
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ACTION BAR */}
-            {detail ? (
-              <div className="mt-3 px-3 flex flex-col gap-2">
-                {actionErr ? (
-                  <div className="text-sm text-rose-600 dark:text-rose-400">
-                    {actionErr}
-                  </div>
-                ) : null}
-
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    {actions.map((action) => (
-                      <Button
-                        key={action.id}
-                        variant={action.variant || "default"}
-                        disabled={
-                          !action.canPerform(detailStatus) ||
-                          actionLoading !== null
-                        }
-                        onClick={() => runAction(action.id)}
-                      >
-                        {actionLoading === action.id
-                          ? `${action.label}…`
-                          : action.label}
-                      </Button>
-                    ))}
-
-                    {gridModel && (
-                      <>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            const meta = {
-                              foremanName:
-                                foremanDisplay !== "—"
-                                  ? foremanDisplay
-                                  : undefined,
-                              contractManagerName:
-                                contractManagerDisplay !== "—"
-                                  ? contractManagerDisplay
-                                  : undefined,
-                              startDate: String(
-                                (detail as Record<string, unknown>)?.startISO ??
-                                  "",
-                              ),
-                              endDate: String(
-                                (detail as Record<string, unknown>)?.endISO ??
-                                  "",
-                              ),
-                              sites: sites.map((s) => ({
-                                code: s.code ?? undefined,
-                                name: s.name,
-                              })),
-                              status: detailStatus,
-                            };
-                            printTimesheet(gridModel, meta);
-                          }}
-                        >
-                          <Printer className="h-4 w-4 mr-1" />
-                          Print
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            const meta = {
-                              foremanName:
-                                foremanDisplay !== "—"
-                                  ? foremanDisplay
-                                  : undefined,
-                              contractManagerName:
-                                contractManagerDisplay !== "—"
-                                  ? contractManagerDisplay
-                                  : undefined,
-                              startDate: String(
-                                (detail as Record<string, unknown>)?.startISO ??
-                                  "",
-                              ),
-                              endDate: String(
-                                (detail as Record<string, unknown>)?.endISO ??
-                                  "",
-                              ),
-                              sites: sites.map((s) => ({
-                                code: s.code ?? undefined,
-                                name: s.name,
-                              })),
-                              status: detailStatus,
-                            };
-                            downloadTimesheetCSV(gridModel, meta);
-                          }}
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          Download CSV
-                        </Button>
-                      </>
-                    )}
-
-                    <Button
-                      variant="outline"
-                      onClick={refreshDetail}
-                      disabled={!activeId}
-                    >
-                      Refresh Detail
-                    </Button>
-
-                    <Button variant="outline" onClick={() => setOpen(false)}>
-                      Close
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </SheetHeader>
-
-          {/* REJECT REASON DIALOG */}
-          <Dialog open={reasonDialogOpen} onOpenChange={setReasonDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Rejection Reason</DialogTitle>
-                <DialogDescription>
-                  Please provide a reason for rejecting this timesheet.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-3">
-                {actionErr ? (
-                  <div className="text-sm text-rose-600 dark:text-rose-400">
-                    {actionErr}
-                  </div>
-                ) : null}
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Reason</label>
-                  <Textarea
-                    value={reasonText}
-                    onChange={(e) => setReasonText(e.target.value)}
-                    placeholder="Type reason…"
-                    className="min-h-20"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm text-muted-foreground">
-                    Suggested reasons
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {SUGGESTED_REASONS.map((reason) => (
-                      <Button
-                        key={reason}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setReasonText(reason)}
-                      >
-                        {reason}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setReasonDialogOpen(false);
-                    setReasonText("");
-                    setActionErr(null);
-                    setPendingActionId(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={!reasonText.trim() || actionLoading !== null}
-                  onClick={confirmRejectionWithReason}
-                >
-                  {actionLoading === pendingActionId ? "Rejecting…" : "Reject"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* GRID/DETAIL CONTENT */}
-          <div className="mt-4">
-            {detailLoading ? (
-              <div className="flex justify-center py-8">
-                <Spinner className="size-8" />
-              </div>
-            ) : detailErr ? (
-              <div className="px-3 space-y-3">
-                <div className="text-sm text-rose-600 dark:text-rose-400">
-                  {detailErr}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={refreshDetail}
-                    disabled={!activeId}
-                  >
-                    Retry
-                  </Button>
-                  <Button variant="outline" onClick={() => setOpen(false)}>
-                    Close
-                  </Button>
-                </div>
-              </div>
-            ) : detail ? (
-              <div className="h-[70vh] px-3 overflow-auto flex flex-col gap-4">
-                <div
-                  className="max-w-7xl"
-                  style={{
-                    WebkitPrintColorAdjust: "exact",
-                    printColorAdjust: "exact",
-                  }}
-                >
-                  {gridNode}
-                </div>
-
-                {/* Totals cards */}
-                <div className="flex gap-4 flex-wrap justify-end items-stretch">
-                  <div className="text-sm border rounded px-3 py-2 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 max-w-xs text-right">
-                    <div className="text-muted-foreground text-xs font-semibold">
-                      FOREMAN TOTAL
-                    </div>
-                    <div className="font-medium mt-1">
-                      Total amount to be paid to {foremanDisplay}:
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1 font-semibold">
-                      {formatCurrency(totalPay)}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 flex-wrap justify-end">
-                    <div className="text-sm border rounded px-3 py-2 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                      <div className="text-muted-foreground text-xs font-semibold">
-                        TOTAL
-                      </div>
-                      <div className="font-medium mt-1">
-                        {totalDays} days • {formatCurrency(totalPay)}
-                      </div>
-                    </div>
-
-                    {foremanTotals.days > 0 ? (
-                      <div className="text-sm border rounded px-3 py-2 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-                        <div className="text-muted-foreground text-xs font-semibold">
-                          FOREMAN
-                        </div>
-                        <div className="font-medium mt-1">
-                          {foremanTotals.days} days ×{" "}
-                          {formatCurrency(
-                            foremanTotals.days > 0
-                              ? foremanTotals.pay / foremanTotals.days
-                              : 0,
-                          )}
-                          /day
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Total: {formatCurrency(foremanTotals.pay)}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {teamTotals.days > 0 ? (
-                      <div className="text-sm border rounded px-3 py-2 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                        <div className="text-muted-foreground text-xs font-semibold">
-                          TEAM
-                        </div>
-                        <div className="font-medium mt-1">
-                          {teamTotals.days} days ×{" "}
-                          {formatCurrency(
-                            teamTotals.days > 0
-                              ? teamTotals.pay / teamTotals.days
-                              : 0,
-                          )}
-                          /day
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Total: {formatCurrency(teamTotals.pay)}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="px-3 text-sm text-muted-foreground">
-                Select a timesheet to view details.
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      <TimesheetDetailSheet
+        open={open}
+        onOpenChange={setOpen}
+        detail={detail}
+        loading={detailLoading}
+        error={detailErr}
+        activeId={activeId}
+        onRetry={refreshDetail}
+        onRefreshDetail={refreshDetail}
+        actions={actions}
+        gridModel={gridModel as any}
+        gridComponent={gridNode}
+        prettyRange={prettyRange}
+        mode="ADMIN"
+      />
     </div>
   );
 }

@@ -8,19 +8,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -28,25 +15,35 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Loader2,
   MapPin,
   QrCode,
   UserPlus,
-  Calendar,
-  Clock,
-  Building,
-  User,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const API_BASE =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 interface Scan {
   id: string;
@@ -111,7 +108,6 @@ export default function AdminAttendanceScansPage() {
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [selectedForemanId, setSelectedForemanId] = useState<string>("");
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<string>("");
-  const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
 
   const loadScans = async (
     siteId?: string,
@@ -139,6 +135,7 @@ export default function AdminAttendanceScansPage() {
       }
       const data = await res.json();
       setScans(data.scans || []);
+      // Only update filter options on initial load (no filters)
       if (!siteId && !foremanId && !supervisorId) {
         setSites(data.sites || []);
         setForemen(data.foremen || []);
@@ -152,7 +149,9 @@ export default function AdminAttendanceScansPage() {
   };
 
   useEffect(() => {
-    loadScans();
+    if (token) {
+      loadScans();
+    }
   }, [token]);
 
   const handleSiteChange = (value: string) => {
@@ -175,19 +174,40 @@ export default function AdminAttendanceScansPage() {
 
   const groupedScans = groupScansByDate(scans);
 
+  // Pagination state per tab (date)
+  const [pageIndexMap, setPageIndexMap] = useState<Record<string, number>>({});
+  const [pageSize, setPageSize] = useState(20);
+  const [activeTab, setActiveTab] = useState<string>("");
+
+  // Set default active tab when data loads
+  useEffect(() => {
+    if (groupedScans.length > 0 && !activeTab) {
+      setActiveTab(groupedScans[0].date);
+    }
+  }, [groupedScans, activeTab]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setPageIndexMap({});
+    setActiveTab("");
+  }, [scans]);
+
+  const getPageIndex = (date: string) => pageIndexMap[date] ?? 0;
+  const setPageIndex = (date: string, idx: number) =>
+    setPageIndexMap((prev) => ({ ...prev, [date]: idx }));
+
   return (
-    <div className="">
-      <Card className="mb-6">
+    <div className="w-full">
+      <Card className="w-full">
         <CardHeader>
           <CardTitle>Attendance Scans</CardTitle>
           <CardDescription>
             View all attendance scans with location data (last 7 days)
           </CardDescription>
         </CardHeader>
-      </Card>
-      <Card>
         <CardContent>
-          <div className="mb-6 grid sm:grid-cols-2 md:grid-cols-3 gap-4 w-full ">
+          {/* Filters */}
+          <div className="mb-6 grid w-full gap-4 sm:grid-cols-2 md:grid-cols-3">
             <Select
               value={selectedSiteId || "all"}
               onValueChange={handleSiteChange}
@@ -249,265 +269,247 @@ export default function AdminAttendanceScansPage() {
               No scans found for the selected filters
             </div>
           ) : (
-            <div className="space-y-8">
-              {groupedScans.map((group) => (
-                <div key={group.date}>
-                  <h2 className="mb-4 text-lg font-semibold">{group.label}</h2>
-                  <div className="rounded border">
-                    <Table className="border-collapse">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="border">Employee</TableHead>
-                          <TableHead className="border">Site</TableHead>
-                          <TableHead className="border">Foreman</TableHead>
-                          <TableHead className="border">Scanned At</TableHead>
-                          <TableHead className="border">Type</TableHead>
-                          <TableHead className="border">Location</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {group.scans.map((scan) => (
-                          <TableRow key={scan.id}>
-                            <TableCell
-                              className="border cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => setSelectedScan(scan)}
-                            >
-                              <div className="flex items-center gap-2">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage
-                                    src={scan.employeePhotoUrl || undefined}
-                                    alt={scan.employeeName}
-                                  />
-                                  <AvatarFallback>
-                                    {scan.employeeName
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")
-                                      .slice(0, 2)
-                                      .toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
+            <Tabs
+              value={activeTab || groupedScans[0]?.date}
+              onValueChange={(v) => setActiveTab(v)}
+            >
+              <TabsList className="mb-4 flex h-auto flex-wrap gap-1">
+                {groupedScans.map((group) => {
+                  const shortLabel = new Date(
+                    group.date + "T00:00:00Z",
+                  ).toLocaleDateString("en-GB", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  });
+                  return (
+                    <TabsTrigger key={group.date} value={group.date}>
+                      {shortLabel}
+                      <Badge
+                        variant="secondary"
+                        className="ml-1.5 h-5 px-1.5 text-xs"
+                      >
+                        {group.scans.length}
+                      </Badge>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+
+              {groupedScans.map((group) => {
+                const pi = getPageIndex(group.date);
+                const totalPages = Math.max(
+                  1,
+                  Math.ceil(group.scans.length / pageSize),
+                );
+                const pageScans = group.scans.slice(
+                  pi * pageSize,
+                  (pi + 1) * pageSize,
+                );
+
+                return (
+                  <TabsContent key={group.date} value={group.date}>
+                    <h2 className="mb-3 text-lg font-semibold">
+                      {group.label}
+                    </h2>
+                    <div className="rounded border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="border-x">Employee</TableHead>
+                            <TableHead className="border-x">Site</TableHead>
+                            <TableHead className="border-x">Foreman</TableHead>
+                            <TableHead className="border-x">
+                              Scanned At
+                            </TableHead>
+                            <TableHead className="border-x">Type</TableHead>
+                            <TableHead className="border-x whitespace-normal">
+                              Location
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pageScans.map((scan) => (
+                            <TableRow key={scan.id}>
+                              <TableCell className="border-x">
                                 <div>
-                                  <div className="font-medium text-primary underline-offset-2 hover:underline">
+                                  <div className="font-medium">
                                     {scan.employeeName}
                                   </div>
                                   <div className="text-sm text-muted-foreground">
                                     {scan.employeeCode}
                                   </div>
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="border">
-                              {scan.siteName}
-                            </TableCell>
-                            <TableCell className="border">
-                              {scan.foremanName}
-                            </TableCell>
-                            <TableCell className="border">
-                              {new Date(scan.scannedAtISO).toLocaleTimeString(
-                                "en-GB",
-                                {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                },
-                              )}
-                            </TableCell>
-                            <TableCell className="border">
-                              {scan.scanType === "REGULAR" ? (
-                                <Badge
-                                  variant="outline"
-                                  className="flex items-center gap-1"
-                                >
-                                  <QrCode className="h-3 w-3" /> QR
-                                </Badge>
-                              ) : (
-                                <Badge
-                                  variant="secondary"
-                                  className="flex items-center gap-1"
-                                >
-                                  <UserPlus className="h-3 w-3" /> Manual
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="border">
-                              {scan.address ? (
-                                <div className="flex items-center gap-1 text-xs">
-                                  <MapPin className="h-3 w-3" />
-                                  <span className="truncate max-w-50">
-                                    {scan.address}
+                              </TableCell>
+                              <TableCell className="border-x">
+                                {scan.siteName}
+                              </TableCell>
+                              <TableCell className="border-x">
+                                {scan.foremanName}
+                              </TableCell>
+                              <TableCell className="border-x">
+                                {new Date(scan.scannedAtISO).toLocaleTimeString(
+                                  "en-GB",
+                                  {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  },
+                                )}
+                              </TableCell>
+                              <TableCell className="border-x align-top whitespace-normal">
+                                {scan.scanType === "MANUAL" ? (
+                                  <Badge variant="outline" className="gap-1">
+                                    <UserPlus className="h-3 w-3" />
+                                    Manual
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="gap-1">
+                                    <QrCode className="h-3 w-3" />
+                                    QR
+                                  </Badge>
+                                )}
+                                {scan.overtimeType !== "NONE" && (
+                                  <Badge variant="default" className="ml-1">
+                                    {scan.overtimeType === "HALF_DAY"
+                                      ? "½ OT"
+                                      : "Full OT"}
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="border-x">
+                                {scan.latitude && scan.longitude ? (
+                                  <div className="space-y-1">
+                                    {scan.address && (
+                                      <div className="max-w-xs truncate text-sm">
+                                        {scan.address}
+                                      </div>
+                                    )}
+                                    <a
+                                      href={`https://www.google.com/maps?q=${scan.latitude},${scan.longitude}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      <MapPin className="h-3 w-3" />
+                                      View map
+                                    </a>
+                                  </div>
+                                ) : scan.address ? (
+                                  <div className="flex items-center gap-1 text-sm">
+                                    <MapPin className="h-3 w-3 text-muted-foreground" />
+                                    <span className="max-w-xs truncate">
+                                      {scan.address}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">
+                                    No location
                                   </span>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">
-                                  No location data
-                                </span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              ))}
-            </div>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Pagination */}
+                    <div className="mt-2 flex items-center justify-between rounded-b-md border-t bg-muted/60 px-4 py-3">
+                      <div className="hidden text-sm text-muted-foreground lg:block">
+                        Showing {pi * pageSize + 1} to {""}
+                        {Math.min(
+                          (pi + 1) * pageSize,
+                          group.scans.length,
+                        )} of {""}
+                        {group.scans.length} scans
+                      </div>
+                      <div className="flex w-full items-center gap-4 lg:w-fit lg:gap-8">
+                        <div className="hidden items-center gap-2 lg:flex">
+                          <span className="text-sm font-medium">
+                            Rows per page
+                          </span>
+                          <Select
+                            value={String(pageSize)}
+                            onValueChange={(v) => {
+                              setPageSize(Number(v));
+                              setPageIndexMap({});
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-20">
+                              <SelectValue placeholder={pageSize} />
+                            </SelectTrigger>
+                            <SelectContent side="top">
+                              {[10, 20, 50, 100].map((size) => (
+                                <SelectItem key={size} value={String(size)}>
+                                  {size}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex w-fit items-center justify-center text-sm font-medium">
+                          Page {pi + 1} of {totalPages}
+                        </div>
+                        <div className="ml-auto flex items-center gap-2 lg:ml-0">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="hidden h-8 w-8 lg:flex"
+                            onClick={() => setPageIndex(group.date, 0)}
+                            disabled={pi === 0}
+                          >
+                            <span className="sr-only">Go to first page</span>
+                            <ChevronsLeft className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() =>
+                              setPageIndex(group.date, Math.max(0, pi - 1))
+                            }
+                            disabled={pi === 0}
+                          >
+                            <span className="sr-only">Previous page</span>
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() =>
+                              setPageIndex(
+                                group.date,
+                                Math.min(totalPages - 1, pi + 1),
+                              )
+                            }
+                            disabled={pi >= totalPages - 1}
+                          >
+                            <span className="sr-only">Next page</span>
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="hidden h-8 w-8 lg:flex"
+                            onClick={() =>
+                              setPageIndex(group.date, totalPages - 1)
+                            }
+                            disabled={pi >= totalPages - 1}
+                          >
+                            <span className="sr-only">Go to last page</span>
+                            <ChevronsRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
           )}
         </CardContent>
       </Card>
-
-      {/* Scan Details Modal */}
-      <Dialog
-        open={!!selectedScan}
-        onOpenChange={(open) => !open && setSelectedScan(null)}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Scan Details</DialogTitle>
-          </DialogHeader>
-          {selectedScan && (
-            <div className="space-y-6">
-              {/* Employee Info with Photo */}
-              <div className="flex items-center gap-4">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage
-                    src={selectedScan.employeePhotoUrl || undefined}
-                    alt={selectedScan.employeeName}
-                  />
-                  <AvatarFallback className="text-xl">
-                    {selectedScan.employeeName
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="text-lg font-semibold">
-                    {selectedScan.employeeName}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedScan.employeeCode}
-                  </p>
-                </div>
-              </div>
-
-              {/* Scan Details Grid */}
-              <div className="grid grid-cols-2 gap-4 rounded border p-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    <span>Work Date</span>
-                  </div>
-                  <p className="font-medium">
-                    {new Date(selectedScan.workDateISO).toLocaleDateString(
-                      "en-GB",
-                      {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      },
-                    )}
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Clock className="h-4 w-4" />
-                    <span>Scanned At</span>
-                  </div>
-                  <p className="font-medium">
-                    {new Date(selectedScan.scannedAtISO).toLocaleTimeString(
-                      "en-GB",
-                      {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      },
-                    )}
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Building className="h-4 w-4" />
-                    <span>Site</span>
-                  </div>
-                  <p className="font-medium">{selectedScan.siteName}</p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <User className="h-4 w-4" />
-                    <span>Foreman</span>
-                  </div>
-                  <p className="font-medium">{selectedScan.foremanName}</p>
-                </div>
-
-                {selectedScan.supervisorName && (
-                  <div className="space-y-1 col-span-2">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <User className="h-4 w-4" />
-                      <span>Supervisor</span>
-                    </div>
-                    <p className="font-medium">{selectedScan.supervisorName}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Scan Type & Overtime */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Type:</span>
-                  {selectedScan.scanType === "REGULAR" ? (
-                    <Badge
-                      variant="outline"
-                      className="flex items-center gap-1"
-                    >
-                      <QrCode className="h-3 w-3" /> QR Scan
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="secondary"
-                      className="flex items-center gap-1"
-                    >
-                      <UserPlus className="h-3 w-3" /> Manual Entry
-                    </Badge>
-                  )}
-                </div>
-                {selectedScan.overtimeType !== "NONE" && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      Overtime:
-                    </span>
-                    <Badge variant="default">
-                      {selectedScan.overtimeType === "HALF_DAY"
-                        ? "Half Day"
-                        : "Full Day"}
-                    </Badge>
-                  </div>
-                )}
-              </div>
-
-              {/* Location */}
-              {selectedScan.address && (
-                <div className="space-y-2 rounded border p-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4" />
-                    <span>Location</span>
-                  </div>
-                  <p className="text-sm">{selectedScan.address}</p>
-                  {selectedScan.latitude && selectedScan.longitude && (
-                    <p className="text-xs text-muted-foreground">
-                      {selectedScan.latitude.toFixed(6)},{" "}
-                      {selectedScan.longitude.toFixed(6)}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

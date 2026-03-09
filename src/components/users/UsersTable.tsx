@@ -22,6 +22,8 @@ import {
   CalendarDays,
   MoreHorizontal,
   Trash2,
+  Pencil,
+  KeyRound,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -85,6 +87,8 @@ interface UsersTableProps {
   currentUserId?: string;
   currentUserRole?: string;
   onDelete: (user: UserRow) => void;
+  onEdit?: (user: UserRow) => void;
+  onResetPassword?: (user: UserRow) => void;
 }
 
 export default function UsersTable({
@@ -92,6 +96,8 @@ export default function UsersTable({
   currentUserId,
   currentUserRole,
   onDelete,
+  onEdit,
+  onResetPassword,
 }: UsersTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [pagination, setPagination] = React.useState({
@@ -228,6 +234,24 @@ export default function UsersTable({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
+                  {onEdit && (
+                    <DropdownMenuItem
+                      className="flex items-center gap-2"
+                      onSelect={() => onEdit(user)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit User
+                    </DropdownMenuItem>
+                  )}
+                  {onResetPassword && (
+                    <DropdownMenuItem
+                      className="flex items-center gap-2"
+                      onSelect={() => onResetPassword(user)}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                      Reset Password
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     className="flex items-center gap-2 text-red-600"
                     onSelect={() => onDelete(user)}
@@ -242,7 +266,7 @@ export default function UsersTable({
         },
       },
     ],
-    [currentUserId, currentUserRole, onDelete],
+    [currentUserId, currentUserRole, onDelete, onEdit, onResetPassword],
   );
 
   const table = useReactTable({

@@ -6,19 +6,35 @@ import {
   QrCode,
   DollarSign,
   CalendarDays,
-  User,
   X,
+  Pencil,
+  ShieldCheck,
+  Power,
+  Phone,
+  UserCog,
+  Unlink,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { useAuth } from "@/contexts/AuthContext";
 
 const API_BASE_URL =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 interface ForemanLink {
   foremanId: string;
@@ -43,57 +59,149 @@ interface Employee {
   createdAt: string;
   updatedAt: string;
   isForeman: boolean;
+  phone?: string | null;
   foremanLinks?: ForemanLink[];
 }
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, user: currentUser } = useAuth();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isPromoteDialogOpen, setIsPromoteDialogOpen] = useState(false);
+  const [isToggleActiveOpen, setIsToggleActiveOpen] = useState(false);
+  const [isUnlinkDialogOpen, setIsUnlinkDialogOpen] = useState(false);
+  const [unlinkForemanId, setUnlinkForemanId] = useState<string | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const [promoting, setPromoting] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
+
+  const isAdmin = currentUser?.role === "ADMIN";
+
+  const loadEmployee = async () => {
+    if (!token || !id) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/employees/${id}`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        if (res.status === 404) {
+          setError("Employee not found");
+        } else {
+          setError("Failed to load employee");
+        }
+        return;
+      }
+
+      const data = await res.json();
+      if (data.ok && data.employee) {
+        setEmployee(data.employee);
+      } else {
+        setError("Failed to load employee data");
+      }
+    } catch (err) {
+      console.error("Error loading employee:", err);
+      setError("Failed to load employee");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadEmployee = async () => {
-      if (!token || !id) return;
-      setLoading(true);
-      setError(null);
+    loadEmployee();
+  }, [token, id]);
 
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/employees/${id}`, {
+  const handleToggleActive = async () => {
+    if (!token || !id) return;
+    setToggling(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/employees/${id}/toggle-active`,
+        {
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-        });
-
-        if (!res.ok) {
-          if (res.status === 404) {
-            setError("Employee not found");
-          } else {
-            setError("Failed to load employee");
-          }
-          return;
-        }
-
-        const data = await res.json();
-        if (data.ok && data.employee) {
-          setEmployee(data.employee);
-        } else {
-          setError("Failed to load employee data");
-        }
-      } catch (err) {
-        console.error("Error loading employee:", err);
-        setError("Failed to load employee");
-      } finally {
-        setLoading(false);
+        },
+      );
+      if (res.ok) {
+        setIsToggleActiveOpen(false);
+        loadEmployee();
       }
-    };
+    } catch (err) {
+      console.error("Failed to toggle employee status:", err);
+    } finally {
+      setToggling(false);
+    }
+  };
 
-    loadEmployee();
-  }, [token, id]);
+  const handlePromoteToForeman = async () => {
+    if (!token || !id) return;
+    setPromoting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/employees`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id: id,
+          promoteToForeman: true,
+        }),
+      });
+      if (res.ok) {
+        setIsPromoteDialogOpen(false);
+        loadEmployee();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        console.error("Promote failed:", data.error);
+      }
+    } catch (err) {
+      console.error("Failed to promote employee:", err);
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const handleUnlinkForeman = async () => {
+    if (!token || !id || !unlinkForemanId) return;
+    setUnlinking(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/employees`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id: id,
+          unlinkForemanId: unlinkForemanId,
+        }),
+      });
+      if (res.ok) {
+        setIsUnlinkDialogOpen(false);
+        setUnlinkForemanId(null);
+        loadEmployee();
+      }
+    } catch (err) {
+      console.error("Failed to unlink foreman:", err);
+    } finally {
+      setUnlinking(false);
+    }
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
@@ -121,11 +229,11 @@ export default function EmployeeDetailPage() {
             Back to Employees
           </Link>
         </Button>
-        <div className="rounded border border-dashed border-zinc-300 bg-white/50 p-12 text-center dark:border-zinc-700/50 dark:bg-card/30">
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
+        <div className="rounded border border-dashed border-border bg-card/50 p-12 text-center">
+          <h3 className="text-lg font-semibold text-foreground">
             {error || "Employee not found"}
           </h3>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             The employee you're looking for doesn't exist or you don't have
             access to view it.
           </p>
@@ -183,9 +291,52 @@ export default function EmployeeDetailPage() {
                 {!employee.active && (
                   <Badge variant="destructive">Inactive</Badge>
                 )}
+                {employee.active && (
+                  <Badge
+                    variant="outline"
+                    className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800"
+                  >
+                    Active
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Action Buttons (Admin only) */}
+          {isAdmin && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => setIsEditDialogOpen(true)}
+              >
+                <Pencil className="h-4 w-4" />
+                Edit
+              </Button>
+              <Button
+                variant={employee.active ? "outline" : "default"}
+                size="sm"
+                className={`gap-1 ${employee.active ? "hover:border-red-200 hover:bg-red-50 hover:text-red-600" : ""}`}
+                onClick={() => setIsToggleActiveOpen(true)}
+              >
+                <Power className="h-4 w-4" />
+                {employee.active ? "Deactivate" : "Activate"}
+              </Button>
+              {!employee.isForeman && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                  onClick={() => setIsPromoteDialogOpen(true)}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Promote to Foreman
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Details Grid */}
@@ -216,11 +367,24 @@ export default function EmployeeDetailPage() {
             </div>
           </div>
 
+          {/* Phone */}
+          {employee.phone && (
+            <div className="rounded border bg-muted/30 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Phone className="h-4 w-4 text-blue-600" />
+                <p className="text-xs font-medium text-muted-foreground">
+                  PHONE
+                </p>
+              </div>
+              <p className="text-lg font-medium">{employee.phone}</p>
+            </div>
+          )}
+
           {/* Foreman Links Section */}
           {employee.foremanLinks && employee.foremanLinks.length > 0 && (
             <div className="border-t pt-6">
               <div className="flex items-center gap-2 mb-4">
-                <User className="h-4 w-4 text-sky-600" />
+                <UserCog className="h-4 w-4 text-sky-600" />
                 <h2 className="text-sm font-semibold">Foreman Assignment</h2>
               </div>
               <div className="space-y-2">
@@ -237,6 +401,20 @@ export default function EmployeeDetailPage() {
                         Assigned: {link.reason || "unknown"}
                       </p>
                     </div>
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                        onClick={() => {
+                          setUnlinkForemanId(link.foremanId);
+                          setIsUnlinkDialogOpen(true);
+                        }}
+                      >
+                        <Unlink className="h-4 w-4 mr-1" />
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -294,6 +472,186 @@ export default function EmployeeDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>Update employee details.</DialogDescription>
+          </DialogHeader>
+          <EditEmployeeForm
+            employee={employee}
+            onSuccess={() => {
+              setIsEditDialogOpen(false);
+              loadEmployee();
+            }}
+            onCancel={() => setIsEditDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Toggle Active Confirmation */}
+      <ConfirmationDialog
+        open={isToggleActiveOpen}
+        onOpenChange={setIsToggleActiveOpen}
+        title={employee.active ? "Deactivate Employee" : "Activate Employee"}
+        description={
+          employee.active
+            ? `Are you sure you want to deactivate ${employee.fullName}? They will no longer appear in active employee lists.`
+            : `Are you sure you want to reactivate ${employee.fullName}?`
+        }
+        confirmLabel={employee.active ? "Deactivate" : "Activate"}
+        variant={employee.active ? "destructive" : "default"}
+        loading={toggling}
+        onConfirm={handleToggleActive}
+      />
+
+      {/* Promote to Foreman Confirmation */}
+      <ConfirmationDialog
+        open={isPromoteDialogOpen}
+        onOpenChange={setIsPromoteDialogOpen}
+        title="Promote to Foreman"
+        description={`This will promote ${employee.fullName} to a foreman role. A user account and login credentials will be generated. This action cannot be easily undone.`}
+        confirmLabel="Promote"
+        loading={promoting}
+        onConfirm={handlePromoteToForeman}
+      />
+
+      {/* Unlink Foreman Confirmation */}
+      <ConfirmationDialog
+        open={isUnlinkDialogOpen}
+        onOpenChange={(open) => {
+          setIsUnlinkDialogOpen(open);
+          if (!open) setUnlinkForemanId(null);
+        }}
+        title="Remove Foreman Link"
+        description="Are you sure you want to remove this foreman assignment?"
+        confirmLabel="Remove"
+        variant="destructive"
+        loading={unlinking}
+        onConfirm={handleUnlinkForeman}
+      />
     </div>
+  );
+}
+
+// Edit Employee Form
+function EditEmployeeForm({
+  employee,
+  onSuccess,
+  onCancel,
+}: {
+  employee: Employee;
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const { token } = useAuth();
+  const [firstName, setFirstName] = useState(employee.firstName);
+  const [lastName, setLastName] = useState(employee.lastName);
+  const [phone, setPhone] = useState(employee.phone || "");
+  const [dayRate, setDayRate] = useState(
+    employee.dayRate ? String(employee.dayRate) : "",
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firstName.trim() || !lastName.trim()) {
+      setError("First name and last name are required");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/employees`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id: employee.id,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: phone.trim() || null,
+          defaultDayRate: dayRate.trim() || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Failed to update employee");
+        return;
+      }
+
+      onSuccess();
+    } catch (err) {
+      setError("Failed to update employee");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-2 rounded">
+          {error}
+        </div>
+      )}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">First Name *</label>
+        <Input
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          placeholder="First name"
+          autoFocus
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Last Name *</label>
+        <Input
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          placeholder="Last name"
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Phone</label>
+        <Input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="e.g. 0812345678"
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Day Rate (R)</label>
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={dayRate}
+          onChange={(e) => setDayRate(e.target.value)}
+          placeholder="e.g. 350.00"
+        />
+      </div>
+      <div className="flex justify-end gap-2 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={submitting}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={submitting}>
+          {submitting ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
+    </form>
   );
 }

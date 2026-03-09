@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 const API_BASE =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
 type SiteMapMarker = {
@@ -497,24 +499,14 @@ export default function SitesMapPage() {
         )}
 
         {/* Header Overlay */}
-        <div
-          className={`absolute left-5 top-5 z-10 rounded-xl border p-3 shadow-lg ${
-            isDark
-              ? "border-slate-700 bg-slate-800"
-              : "border-slate-200 bg-white"
-          }`}
-        >
+        <div className="absolute left-5 top-5 z-10 rounded border border-border bg-card p-3 shadow-lg">
           <div className="flex items-center gap-3">
             <MapPin className="h-6 w-6 text-teal-600" />
             <div>
-              <div
-                className={`text-base font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
-              >
+              <div className="text-base font-bold text-foreground">
                 Sites Map
               </div>
-              <div
-                className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}
-              >
+              <div className="text-xs text-muted-foreground">
                 {searchIsActive
                   ? `${filteredSites.length} of ${sites.length} locations`
                   : `${sites.length} locations`}
@@ -526,11 +518,7 @@ export default function SitesMapPage() {
         {/* 3D Toggle Button */}
         <button
           onClick={toggle3D}
-          className={`absolute bottom-20 right-5 z-10 flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-sm font-semibold shadow-lg transition-all ${
-            isDark
-              ? "border-slate-700 bg-slate-800 text-teal-400 hover:bg-slate-700"
-              : "border-slate-200 bg-white text-teal-700 hover:bg-slate-50"
-          }`}
+          className="absolute bottom-20 right-5 z-10 flex items-center gap-1.5 rounded border border-border bg-card px-3.5 py-2.5 text-sm font-semibold text-teal-700 shadow-lg transition-all hover:bg-muted dark:text-teal-400"
         >
           <svg
             width="20"
@@ -549,27 +537,13 @@ export default function SitesMapPage() {
       </div>
 
       {/* Right Panel */}
-      <div
-        className={`flex w-80 flex-col border-l ${
-          isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white"
-        }`}
-      >
+      <div className="flex w-80 flex-col border-l border-border bg-card">
         {/* Panel Header */}
-        <div
-          className={`flex items-center justify-between border-b px-5 py-4 ${
-            isDark ? "border-slate-700" : "border-slate-200"
-          }`}
-        >
-          <h2
-            className={`text-lg font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
-          >
-            Sites Locations
-          </h2>
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-lg font-bold text-foreground">Sites Locations</h2>
           <Badge
             variant="secondary"
-            className={
-              isDark ? "bg-teal-900 text-teal-400" : "bg-teal-100 text-teal-700"
-            }
+            className="bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-400"
           >
             {locationCountLabel}
           </Badge>
@@ -578,11 +552,7 @@ export default function SitesMapPage() {
         {/* Search Bar */}
         <div className="p-4">
           <div className="relative">
-            <Search
-              className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${
-                isDark ? "text-slate-500" : "text-slate-400"
-              }`}
-            />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Search location..."
@@ -591,33 +561,21 @@ export default function SitesMapPage() {
               onKeyDown={(e) => {
                 if (e.key === "Escape") setSearchQuery("");
               }}
-              className={`pl-9 ${
-                isDark
-                  ? "border-slate-700 bg-slate-900"
-                  : "border-slate-200 bg-slate-50"
-              }`}
+              className="pl-9"
             />
           </div>
         </div>
 
         {/* Tabs */}
-        <div
-          className={`flex gap-2 border-b px-4 pb-3 ${
-            isDark ? "border-slate-700" : "border-slate-200"
-          }`}
-        >
+        <div className="flex gap-2 border-b border-border px-4 pb-3">
           {(["all", "active", "issues"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`rounded px-3 py-2 text-sm font-semibold transition-all ${
                 activeTab === tab
-                  ? isDark
-                    ? "bg-teal-900 text-teal-400"
-                    : "bg-teal-100 text-teal-700"
-                  : isDark
-                    ? "bg-slate-900 text-slate-400 hover:bg-slate-700"
-                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  ? "bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-400"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -628,9 +586,7 @@ export default function SitesMapPage() {
         {/* Sites List */}
         <div className="flex-1 overflow-y-auto p-3">
           {filteredSites.length === 0 ? (
-            <div
-              className={`p-3 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}
-            >
+            <div className="p-3 text-sm text-muted-foreground">
               No matching sites.
             </div>
           ) : (
@@ -642,13 +598,9 @@ export default function SitesMapPage() {
                 onMouseLeave={() => setHoveredId(null)}
                 className={`mb-1.5 flex cursor-pointer items-center justify-between rounded border-b-4 p-3 transition-all ${
                   selectedSite?.id === site.id
-                    ? isDark
-                      ? "border-teal-500 bg-teal-700"
-                      : "border-green-300 bg-green-100"
+                    ? "border-green-300 bg-green-100 dark:border-teal-500 dark:bg-teal-700"
                     : hoveredId === site.id
-                      ? isDark
-                        ? "border-teal-700 bg-teal-900"
-                        : "border-green-200 bg-green-50"
+                      ? "border-green-200 bg-green-50 dark:border-teal-700 dark:bg-teal-900"
                       : "border-transparent"
                 }`}
               >
@@ -658,22 +610,16 @@ export default function SitesMapPage() {
                     style={{ backgroundColor: getStatusColor(site.status) }}
                   />
                   <div>
-                    <div
-                      className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}
-                    >
+                    <div className="text-sm font-semibold text-foreground">
                       {site.name}
                     </div>
-                    <div
-                      className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}
-                    >
+                    <div className="text-xs text-muted-foreground">
                       {site.code}
                     </div>
                   </div>
                 </div>
                 {site.region && (
-                  <div
-                    className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}
-                  >
+                  <div className="text-xs font-medium text-muted-foreground">
                     {site.region}
                   </div>
                 )}
@@ -688,11 +634,7 @@ export default function SitesMapPage() {
             <Button
               onClick={handleReset}
               variant="default"
-              className={`w-full ${
-                isDark
-                  ? "bg-teal-600 hover:bg-teal-700"
-                  : "bg-teal-700 hover:bg-teal-800"
-              }`}
+              className="w-full bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700"
             >
               <RotateCcw className="mr-2 h-4 w-4" />
               Reset View

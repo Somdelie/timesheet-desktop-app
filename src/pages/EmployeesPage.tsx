@@ -20,10 +20,12 @@ import EmployeesTable, {
 } from "@/components/employees/EmployeesTable";
 
 const API_BASE_URL =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 export default function EmployeesPage() {
   const { token } = useAuth();
@@ -141,11 +143,11 @@ export default function EmployeesPage() {
       </div>
 
       {/* Search controls */}
-      <div className="rounded border border-zinc-200/50 bg-white/80 backdrop-blur-sm p-3 shadow-sm transition-all hover:shadow-md dark:border-zinc-700/50 dark:bg-card/40">
+      <div className="rounded border border-border/50 bg-card/80 backdrop-blur-sm p-3 shadow-sm transition-all hover:shadow-md">
         <div className="flex flex-col gap-4 sm:flex-row items-end sm:justify-between">
           <div className="flex-1 w-full">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -153,7 +155,7 @@ export default function EmployeesPage() {
                   if (e.key === "Escape") setQuery("");
                 }}
                 placeholder="Search by name or QR code..."
-                className="h-10 pl-9 dark:bg-zinc-800/50 dark:border-zinc-700/50 dark:text-white dark:placeholder-zinc-500"
+                className="h-10 pl-9"
               />
             </div>
           </div>
@@ -161,14 +163,14 @@ export default function EmployeesPage() {
           <div className="flex gap-2">
             <Button
               variant={show === "active" ? "default" : "outline"}
-              className="h-10 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:text-white dark:hover:bg-zinc-700/50"
+              className="h-10"
               onClick={() => setShow("active")}
             >
               Active
             </Button>
             <Button
               variant={show === "all" ? "default" : "outline"}
-              className="h-10 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:text-white dark:hover:bg-zinc-700/50"
+              className="h-10"
               onClick={() => setShow("all")}
             >
               All
@@ -179,14 +181,14 @@ export default function EmployeesPage() {
 
       {/* Employees Table */}
       {filtered.length === 0 ? (
-        <div className="rounded border border-dashed border-zinc-300 bg-white/50 p-12 text-center dark:border-zinc-700/50 dark:bg-card/30">
-          <div className="mx-auto w-12 h-12 rounded-full bg-zinc-100 dark:bg-slate-950 flex items-center justify-center mb-4">
-            <Search className="h-6 w-6 text-zinc-400 dark:text-zinc-500" />
+        <div className="rounded border border-dashed border-border bg-card/50 p-12 text-center">
+          <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Search className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
+          <h3 className="text-lg font-semibold text-foreground">
             No employees found
           </h3>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             Adjust your filters or add a new employee.
           </p>
         </div>
@@ -199,11 +201,12 @@ export default function EmployeesPage() {
   );
 }
 
-// Simplified Create Employee Form
+// Create Employee Form (with phone field)
 function CreateEmployeeForm({ onSuccess }: { onSuccess: () => void }) {
   const { token } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -227,6 +230,7 @@ function CreateEmployeeForm({ onSuccess }: { onSuccess: () => void }) {
         body: JSON.stringify({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
+          phone: phone.trim() || undefined,
         }),
       });
 
@@ -266,6 +270,14 @@ function CreateEmployeeForm({ onSuccess }: { onSuccess: () => void }) {
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
           placeholder="Enter last name"
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Phone</label>
+        <Input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="e.g. 0812345678"
         />
       </div>
       <div className="flex justify-end gap-2 pt-2">

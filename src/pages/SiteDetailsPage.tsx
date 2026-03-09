@@ -11,6 +11,9 @@ import {
   Calendar,
   TrendingUp,
   Pencil,
+  Power,
+  DollarSign,
+  CalendarPlus,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -30,7 +33,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import SiteMaterialsPanel from "@/components/sites/SiteMaterialsPanel";
+import SiteMaterialOrdersPanel from "@/components/sites/SiteMaterialOrdersPanel";
 
 type SiteDetail = {
   id: string;
@@ -80,10 +86,12 @@ type WageData = {
 };
 
 const API_BASE_URL =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 function formatCurrency(amount: number): string {
   return `R ${amount.toFixed(2)}`;
@@ -102,15 +110,15 @@ function Card({
   icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="rounded border border-slate-200/50 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/40 backdrop-blur-sm p-6 shadow-sm transition-all hover:shadow-md">
+    <div className="rounded border border-border/50 bg-card/80 backdrop-blur-sm p-6 shadow-sm transition-all hover:shadow-md">
       <div className="mb-6 flex items-center gap-3">
         {Icon && <Icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+          <h2 className="text-lg font-bold tracking-tight text-foreground">
             {title}
           </h2>
           {description && (
-            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {description}
             </p>
           )}
@@ -134,22 +142,22 @@ function AssignmentRow({
   const isActive = !assignment.endsOn;
 
   return (
-    <div className="group flex items-start justify-between gap-3 rounded border border-slate-200/30 bg-slate-50/30 p-4 transition-all hover:bg-slate-100/50 dark:border-slate-700/30 dark:bg-slate-800/20 dark:hover:bg-slate-800/40">
+    <div className="group flex items-start justify-between gap-3 rounded border border-border/30 bg-muted/30 p-4 transition-all hover:bg-muted/50">
       <div className="min-w-0 flex-1">
-        <h4 className="truncate font-semibold text-slate-900 dark:text-white">
+        <h4 className="truncate font-semibold text-foreground">
           {assignment.name}
         </h4>
-        <p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-400">
+        <p className="mt-1 truncate text-sm text-muted-foreground">
           {assignment.email || "No email"}
         </p>
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
-          <div className="flex items-center gap-1 rounded-full bg-slate-200/40 px-2 py-1 text-slate-700 dark:bg-slate-700/40 dark:text-slate-300">
+          <div className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-muted-foreground">
             <span
-              className={`inline-block h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-500 dark:bg-emerald-400" : "bg-slate-400"}`}
+              className={`inline-block h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-muted-foreground"}`}
             />
             {isActive ? "Active" : "Ended"}
           </div>
-          <div className="flex items-center gap-1 rounded-full bg-slate-200/40 px-2 py-1 text-slate-700 dark:bg-slate-700/40 dark:text-slate-300">
+          <div className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-muted-foreground">
             <Calendar className="h-3 w-3" />
             {new Date(assignment.startsOn).toLocaleDateString()}
           </div>
@@ -162,7 +170,7 @@ function AssignmentRow({
           size="sm"
           onClick={onEnd}
           disabled={isLoading}
-          className="h-9 hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-slate-700/50 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-red-500/50 dark:hover:bg-red-500/10"
+          className="h-9 hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:hover:border-red-500/50 dark:hover:bg-red-500/10"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -186,6 +194,31 @@ export default function SiteDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isFinishDialogOpen, setIsFinishDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [finishLoading, setFinishLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Booking panel state
+  const [bookingDate, setBookingDate] = useState("");
+  const [bookingForemanId, setBookingForemanId] = useState("");
+  const [bookingLoading, setBookingLoading] = useState(false);
+
+  // Foreman day rate overrides state
+  const [rateOverrides, setRateOverrides] = useState<
+    Array<{
+      id: string;
+      foremanId: string;
+      foremanName: string;
+      dayRate: string;
+      startsOn: string;
+      endsOn: string | null;
+    }>
+  >([]);
+  const [rateOverridesLoading, setRateOverridesLoading] = useState(false);
+  const [newOverrideForemanId, setNewOverrideForemanId] = useState("");
+  const [newOverrideRate, setNewOverrideRate] = useState("");
+  const [savingOverride, setSavingOverride] = useState(false);
 
   // Assignments state
   const [supervisors, setSupervisors] = useState<Assignment[]>([]);
@@ -432,16 +465,153 @@ export default function SiteDetailsPage() {
   useEffect(() => {
     loadSiteDetails();
     loadAssignmentOptions();
+    if (id && token) loadRateOverrides();
   }, [token, id]);
+
+  const handleMarkFinished = async () => {
+    if (!token || !id) return;
+    setFinishLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/app/admin/sites/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isActive: false }),
+      });
+      if (res.ok) {
+        setIsFinishDialogOpen(false);
+        loadSiteDetails();
+      }
+    } finally {
+      setFinishLoading(false);
+    }
+  };
+
+  const handleDeleteSite = async () => {
+    if (!token || !id) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/app/admin/sites/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        setIsDeleteDialogOpen(false);
+        window.location.href = "/sites";
+      }
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleBookForeman = async () => {
+    if (!token || !id || !bookingForemanId || !bookingDate) return;
+    setBookingLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/app/admin/sites/${id}/foremen`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ userId: bookingForemanId, date: bookingDate }),
+        },
+      );
+      if (res.ok) {
+        setBookingForemanId("");
+        setBookingDate("");
+        loadSiteDetails();
+      }
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  const loadRateOverrides = async () => {
+    if (!token || !id) return;
+    setRateOverridesLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/app/admin/sites/${id}/foreman-day-rate-overrides`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setRateOverrides(data.overrides || []);
+      }
+    } catch (err) {
+      console.error("Failed to load rate overrides:", err);
+    } finally {
+      setRateOverridesLoading(false);
+    }
+  };
+
+  const handleSaveOverride = async () => {
+    if (!token || !id || !newOverrideForemanId || !newOverrideRate) return;
+    setSavingOverride(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/app/admin/sites/${id}/foreman-day-rate-overrides?foremanId=${newOverrideForemanId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            dayRate: parseFloat(newOverrideRate),
+            startsOn: new Date().toISOString().slice(0, 10),
+          }),
+        },
+      );
+      if (res.ok) {
+        setNewOverrideForemanId("");
+        setNewOverrideRate("");
+        loadRateOverrides();
+      }
+    } finally {
+      setSavingOverride(false);
+    }
+  };
+
+  const handleDeleteOverride = async (overrideId: string) => {
+    if (!token || !id) return;
+    try {
+      await fetch(
+        `${API_BASE_URL}/api/app/admin/sites/${id}/foreman-day-rate-overrides`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ id: overrideId }),
+        },
+      );
+      loadRateOverrides();
+    } catch (err) {
+      console.error("Failed to delete override:", err);
+    }
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
-          <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-          <p className="text-slate-600 dark:text-slate-400">
-            Loading site details...
-          </p>
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <p className="text-muted-foreground">Loading site details...</p>
         </div>
       </div>
     );
@@ -450,11 +620,11 @@ export default function SiteDetailsPage() {
   if (error || !site) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="rounded border border-slate-200/50 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/40 backdrop-blur-sm p-8 text-center max-w-md">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+        <div className="rounded border border-border/50 bg-card/80 backdrop-blur-sm p-8 text-center max-w-md">
+          <h2 className="text-lg font-semibold text-foreground">
             Site Not Found
           </h2>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+          <p className="mt-2 text-sm text-muted-foreground">
             The site you're looking for doesn't exist or you don't have access
             to it.
           </p>
@@ -477,7 +647,7 @@ export default function SiteDetailsPage() {
         <div className="mb-2">
           <Link
             to="/sites"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Sites
@@ -485,11 +655,11 @@ export default function SiteDetailsPage() {
         </div>
 
         {/* Header Card */}
-        <div className="mb-3 rounded border border-slate-200/50 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/40 backdrop-blur-sm p-4 shadow-sm">
+        <div className="mb-3 rounded border border-border/50 bg-card/80 backdrop-blur-sm p-4 shadow-sm">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">
                   {site.name}
                 </h1>
                 {site.isActive && (
@@ -503,10 +673,10 @@ export default function SiteDetailsPage() {
               <div className="mt-4 flex flex-wrap gap-4">
                 {site.code && (
                   <div className="flex items-center">
-                    <Hash className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                    <span className="ml-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                    <Hash className="h-4 w-4 text-muted-foreground" />
+                    <span className="ml-2 text-sm font-medium text-muted-foreground">
                       Job Number:{" "}
-                      <span className="font-mono text-slate-900 dark:text-slate-200">
+                      <span className="font-mono text-foreground">
                         {site.code}
                       </span>
                     </span>
@@ -514,8 +684,8 @@ export default function SiteDetailsPage() {
                 )}
                 {site.location && (
                   <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">
                       {site.location}
                     </span>
                   </div>
@@ -523,8 +693,8 @@ export default function SiteDetailsPage() {
 
                 {site.address && (
                   <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">
                       Address: {site.address}
                     </span>
                   </div>
@@ -532,10 +702,10 @@ export default function SiteDetailsPage() {
 
                 {hasCoords && (
                   <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">
                       Pin:{" "}
-                      <span className="font-mono text-slate-900 dark:text-slate-200">
+                      <span className="font-mono text-foreground">
                         {site.latitude!.toFixed(6)},{" "}
                         {site.longitude!.toFixed(6)}
                       </span>
@@ -544,7 +714,7 @@ export default function SiteDetailsPage() {
                 )}
 
                 {!site.address && !hasCoords && (
-                  <div className="text-sm font-medium text-slate-500 dark:text-slate-500">
+                  <div className="text-sm font-medium text-muted-foreground">
                     No address/pin set yet.
                   </div>
                 )}
@@ -560,12 +730,30 @@ export default function SiteDetailsPage() {
                 <Pencil className="h-4 w-4" />
                 Edit location
               </Button>
+              {site.isActive && (
+                <Button
+                  variant="outline"
+                  className="gap-2 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600"
+                  onClick={() => setIsFinishDialogOpen(true)}
+                >
+                  <Power className="h-4 w-4" />
+                  Mark Finished
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                className="gap-2 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                onClick={() => setIsDeleteDialogOpen(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Site
+              </Button>
 
-              <div className="rounded border border-slate-200/50 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30 p-4 text-right">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+              <div className="rounded border border-border/50 bg-muted/50 p-4 text-right">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Total Wages Cost
                 </p>
-                <p className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-300 break-all">
+                <p className="mt-1 font-mono text-xs text-foreground break-all">
                   {formatCurrency(totalProjectWages)}
                 </p>
               </div>
@@ -584,7 +772,7 @@ export default function SiteDetailsPage() {
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Supervisors Section */}
               <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                   Supervisors
                 </h3>
 
@@ -621,7 +809,7 @@ export default function SiteDetailsPage() {
                 {/* Supervisor List */}
                 <div className="space-y-2">
                   {supervisors.filter((s) => !s.endsOn).length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">
+                    <p className="text-sm text-muted-foreground py-4 text-center">
                       No supervisors assigned
                     </p>
                   ) : (
@@ -641,7 +829,7 @@ export default function SiteDetailsPage() {
 
               {/* Foremen Section */}
               <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                   Foremen
                 </h3>
 
@@ -678,7 +866,7 @@ export default function SiteDetailsPage() {
                 {/* Foremen List */}
                 <div className="space-y-2">
                   {foremen.filter((f) => !f.endsOn).length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">
+                    <p className="text-sm text-muted-foreground py-4 text-center">
                       No foremen assigned
                     </p>
                   ) : (
@@ -698,6 +886,12 @@ export default function SiteDetailsPage() {
             </div>
           </Card>
 
+          {/* Site Materials Panel */}
+          <SiteMaterialsPanel siteId={id!} />
+
+          {/* Material Orders Panel */}
+          <SiteMaterialOrdersPanel siteId={id!} />
+
           {/* Wage Totals Panel */}
           <Card
             title="Wage Totals"
@@ -708,7 +902,7 @@ export default function SiteDetailsPage() {
               {/* Date Range Selector */}
               <div className="grid gap-3 md:grid-cols-3">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                     Start Date
                   </label>
                   <Input
@@ -716,11 +910,10 @@ export default function SiteDetailsPage() {
                     value={wageFrom}
                     onChange={(e) => setWageFrom(e.target.value)}
                     disabled={wageLoading}
-                    className="dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                     End Date
                   </label>
                   <Input
@@ -728,7 +921,6 @@ export default function SiteDetailsPage() {
                     value={wageTo}
                     onChange={(e) => setWageTo(e.target.value)}
                     disabled={wageLoading}
-                    className="dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-white"
                   />
                 </div>
                 <div className="flex flex-col justify-end">
@@ -757,23 +949,23 @@ export default function SiteDetailsPage() {
                 <div className="space-y-4">
                   {/* Summary Cards */}
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="rounded border border-slate-200/50 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    <div className="rounded border border-border/50 bg-muted/50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Total Days
                       </p>
-                      <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                      <p className="mt-1 text-2xl font-bold text-foreground">
                         {wageData.totals.totalDays}
                       </p>
                     </div>
-                    <div className="rounded border border-slate-200/50 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    <div className="rounded border border-border/50 bg-muted/50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Total Workers
                       </p>
-                      <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                      <p className="mt-1 text-2xl font-bold text-foreground">
                         {wageData.totals.totalWorkers}
                       </p>
                     </div>
-                    <div className="rounded border border-slate-200/50 dark:border-slate-700/50 bg-emerald-50/50 dark:bg-emerald-900/20 p-4">
+                    <div className="rounded border border-border/50 bg-emerald-50/50 dark:bg-emerald-900/20 p-4">
                       <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                         Total Wages
                       </p>
@@ -786,24 +978,24 @@ export default function SiteDetailsPage() {
                   {/* Foremen Breakdown */}
                   {wageData.foremen && wageData.foremen.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-3">
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                         By Foreman
                       </h3>
                       <div className="space-y-2">
                         {wageData.foremen.map((f) => (
                           <div
                             key={f.foremanId}
-                            className="flex items-center justify-between rounded border border-slate-200/30 bg-slate-50/30 p-3 dark:border-slate-700/30 dark:bg-slate-800/20"
+                            className="flex items-center justify-between rounded border border-border/30 bg-muted/30 p-3"
                           >
                             <div>
-                              <p className="font-medium text-slate-900 dark:text-white">
+                              <p className="font-medium text-foreground">
                                 {f.name}
                               </p>
-                              <p className="text-xs text-slate-600 dark:text-slate-400">
+                              <p className="text-xs text-muted-foreground">
                                 {f.days} days, {f.workers} workers
                               </p>
                             </div>
-                            <p className="font-mono text-sm font-semibold text-slate-900 dark:text-white">
+                            <p className="font-mono text-sm font-semibold text-foreground">
                               {formatCurrency(f.wages)}
                             </p>
                           </div>
@@ -812,6 +1004,178 @@ export default function SiteDetailsPage() {
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Site Booking Panel */}
+          <Card
+            title="Book Foreman for a Day"
+            description="Assign a foreman to work on this site for a specific date"
+            icon={CalendarPlus}
+          >
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={bookingDate}
+                    onChange={(e) => setBookingDate(e.target.value)}
+                    disabled={bookingLoading}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Foreman
+                  </label>
+                  <Select
+                    value={bookingForemanId}
+                    onValueChange={setBookingForemanId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a foreman" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {foremen.map((f: Assignment) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col justify-end">
+                  <Button
+                    onClick={handleBookForeman}
+                    disabled={
+                      bookingLoading || !bookingDate || !bookingForemanId
+                    }
+                    className="gap-2"
+                  >
+                    {bookingLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Booking...
+                      </>
+                    ) : (
+                      <>
+                        <CalendarPlus className="h-4 w-4" />
+                        Book
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Foreman Day Rate Overrides Panel */}
+          <Card
+            title="Foreman Day Rate Overrides"
+            description="Set custom day rates for foremen on this site"
+            icon={DollarSign}
+          >
+            <div className="space-y-4">
+              {/* Add new override */}
+              <div className="grid gap-3 md:grid-cols-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Foreman
+                  </label>
+                  <Select
+                    value={newOverrideForemanId}
+                    onValueChange={setNewOverrideForemanId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a foreman" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {foremen.map((f: Assignment) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Day Rate (R)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={newOverrideRate}
+                    onChange={(e) => setNewOverrideRate(e.target.value)}
+                    placeholder="e.g. 450"
+                    disabled={savingOverride}
+                  />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <Button
+                    onClick={handleSaveOverride}
+                    disabled={
+                      savingOverride ||
+                      !newOverrideForemanId ||
+                      !newOverrideRate
+                    }
+                    className="gap-2"
+                  >
+                    {savingOverride ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="h-4 w-4" />
+                        Save Override
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Existing overrides */}
+              {rateOverridesLoading ? (
+                <div className="flex items-center justify-center py-6 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Loading overrides...
+                </div>
+              ) : rateOverrides.length > 0 ? (
+                <div className="space-y-2">
+                  {rateOverrides.map((ov) => (
+                    <div
+                      key={ov.id}
+                      className="flex items-center justify-between rounded border border-border/30 bg-muted/30 p-3"
+                    >
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {ov.foremanName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Custom rate: R{ov.dayRate}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        onClick={() => handleDeleteOverride(ov.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-2">
+                  No rate overrides set. Foremen will use their default day
+                  rates.
+                </p>
               )}
             </div>
           </Card>
@@ -840,6 +1204,30 @@ export default function SiteDetailsPage() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Mark Finished Confirmation */}
+      <ConfirmationDialog
+        open={isFinishDialogOpen}
+        onOpenChange={setIsFinishDialogOpen}
+        title="Mark Site as Finished"
+        description={`Are you sure you want to mark "${site?.name}" as finished? This will deactivate the site.`}
+        confirmLabel="Mark Finished"
+        variant="destructive"
+        loading={finishLoading}
+        onConfirm={handleMarkFinished}
+      />
+
+      {/* Delete Site Confirmation */}
+      <ConfirmationDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Delete Site"
+        description={`Are you sure you want to permanently delete "${site?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={handleDeleteSite}
+      />
     </div>
   );
 }
@@ -910,10 +1298,10 @@ function EditSiteLocationForm({
       <div className="space-y-2">
         <Label
           htmlFor="location"
-          className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+          className="text-sm font-semibold text-foreground"
         >
           Location label{" "}
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
+          <span className="text-xs text-muted-foreground font-normal">
             (Optional)
           </span>
         </Label>
@@ -923,17 +1311,16 @@ function EditSiteLocationForm({
           onChange={(e) => setLocation(e.target.value)}
           placeholder="e.g. Midrand, Gauteng"
           disabled={submitting}
-          className="dark:bg-slate-800/50 dark:border-slate-700/50"
         />
       </div>
 
       <div className="space-y-2">
         <Label
           htmlFor="address"
-          className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+          className="text-sm font-semibold text-foreground"
         >
           Street address{" "}
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
+          <span className="text-xs text-muted-foreground font-normal">
             (Optional)
           </span>
         </Label>
@@ -943,7 +1330,6 @@ function EditSiteLocationForm({
           onChange={(e) => setAddress(e.target.value)}
           placeholder="e.g. 123 Main Street, Sandton"
           disabled={submitting}
-          className="dark:bg-slate-800/50 dark:border-slate-700/50"
         />
       </div>
 
@@ -951,7 +1337,7 @@ function EditSiteLocationForm({
         <div className="space-y-2">
           <Label
             htmlFor="latitude"
-            className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+            className="text-sm font-semibold text-foreground"
           >
             Latitude
           </Label>
@@ -963,13 +1349,12 @@ function EditSiteLocationForm({
             type="number"
             step="any"
             disabled={submitting}
-            className="dark:bg-slate-800/50 dark:border-slate-700/50"
           />
         </div>
         <div className="space-y-2">
           <Label
             htmlFor="longitude"
-            className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+            className="text-sm font-semibold text-foreground"
           >
             Longitude
           </Label>
@@ -981,7 +1366,6 @@ function EditSiteLocationForm({
             type="number"
             step="any"
             disabled={submitting}
-            className="dark:bg-slate-800/50 dark:border-slate-700/50"
           />
         </div>
       </div>

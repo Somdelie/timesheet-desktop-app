@@ -65,10 +65,12 @@ import type { TimesheetGridModel } from "@/components/timesheets/gridModel";
 import { normalizeTimesheetToGrid } from "@/lib/normalizeTimesheetDetail";
 
 const API_BASE =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 type PeriodOption = {
   id: string;
@@ -89,6 +91,14 @@ type SupervisorRow = {
   totalWorkerDays?: number | null;
   totalWorkerWages?: number | null;
   rowKey?: string;
+};
+
+type DayAcceptance = {
+  workDate: string;
+  status: string;
+  acceptedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
 };
 
 function ensureUniqueRowKeys<T extends { id: string; rowKey?: string }>(
@@ -137,9 +147,11 @@ function statusClass(s: string) {
     return "border-rose-500/25 bg-rose-500/15 text-rose-700 dark:text-rose-300";
   if (s === "SUBMITTED")
     return "border-sky-600/25 bg-sky-600/15 text-sky-700 dark:text-sky-300";
+  if (s === "ACCEPTED")
+    return "border-amber-500/25 bg-amber-500/15 text-amber-700 dark:text-amber-300";
   if (s === "PAID")
     return "border-purple-500/25 bg-purple-500/15 text-purple-700 dark:text-purple-300";
-  return "border-slate-500/25 bg-slate-500/15 text-slate-700 dark:text-slate-300";
+  return "border-border bg-muted text-muted-foreground";
 }
 
 function StatusPill({ status }: { status: string }) {
@@ -216,6 +228,13 @@ export default function SupervisorTimesheetsPage() {
   const [detailErr, setDetailErr] = useState<string | null>(null);
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
 
+  const [dayAcceptances, setDayAcceptances] = useState<DayAcceptance[] | null>(
+    null,
+  );
+  const [dayAcceptancesErr, setDayAcceptancesErr] = useState<string | null>(
+    null,
+  );
+
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
   const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
@@ -239,6 +258,26 @@ export default function SupervisorTimesheetsPage() {
     if (!gridModel) return null;
     return <TimesheetGrid model={gridModel} />;
   }, [gridModel]);
+
+  const dayAcceptanceSummary = useMemo(() => {
+    if (!gridModel || !dayAcceptances || !dayAcceptances.length) {
+      return null;
+    }
+
+    const totalDays = gridModel.columns.length || 14;
+    const accepted = dayAcceptances.filter(
+      (d) => d.status === "ACCEPTED",
+    ).length;
+    const rejected = dayAcceptances.filter(
+      (d) => d.status === "REJECTED",
+    ).length;
+    const pending = Math.max(totalDays - accepted - rejected, 0);
+    const sorted = [...dayAcceptances].sort((a, b) =>
+      a.workDate.localeCompare(b.workDate),
+    );
+
+    return { totalDays, accepted, rejected, pending, sorted };
+  }, [gridModel, dayAcceptances]);
 
   const columns = useMemo<ColumnDef<SupervisorRow>[]>(
     () => [
@@ -529,6 +568,52 @@ export default function SupervisorTimesheetsPage() {
     return () => listAbortRef.current?.abort();
   }, [loadList, periodId]);
 
+  const loadDayAcceptances = useCallback(
+    async (id: string, siteId?: string | null) => {
+      if (!token) return;
+
+      try {
+        const url = `${API_BASE}/api/app/supervisor/timesheets/${encodeURIComponent(id)}/day-acceptances${siteId ? `?siteId=${encodeURIComponent(siteId)}` : ""}`;
+
+        const res = await fetch(url, {
+          cache: "no-store",
+          headers: {
+            accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) {
+          const msg =
+            payload?.error ||
+            payload?.message ||
+            `Failed to load day acceptances (${res.status})`;
+          throw new Error(msg);
+        }
+
+        const list =
+          (Array.isArray(payload?.dayAcceptances) && payload.dayAcceptances) ||
+          [];
+
+        setDayAcceptances(
+          list.map((x: any) => ({
+            workDate: String(x.workDate ?? x.date ?? ""),
+            status: String(x.status ?? ""),
+            acceptedAt: x.acceptedAt ?? null,
+            rejectedAt: x.rejectedAt ?? null,
+            rejectionReason: x.rejectionReason ?? null,
+          })),
+        );
+        setDayAcceptancesErr(null);
+      } catch (e) {
+        setDayAcceptances(null);
+        setDayAcceptancesErr(toSafeErrorText(e));
+      }
+    },
+    [token],
+  );
+
   const openDetail = useCallback(
     async (id: string, siteId?: string | null) => {
       if (!token) return;
@@ -540,6 +625,8 @@ export default function SupervisorTimesheetsPage() {
       setDetailErr(null);
       setDetailLoading(true);
       setActionErr(null);
+      setDayAcceptances(null);
+      setDayAcceptancesErr(null);
 
       try {
         const url = `${API_BASE}/api/app/supervisor/timesheets/${encodeURIComponent(id)}${siteId ? `?siteId=${encodeURIComponent(siteId)}` : ""}`;
@@ -562,13 +649,15 @@ export default function SupervisorTimesheetsPage() {
         }
 
         setDetail(payload?.timesheet ?? payload);
+
+        await loadDayAcceptances(id, siteId ?? null);
       } catch (e) {
         setDetailErr(toSafeErrorText(e));
       } finally {
         setDetailLoading(false);
       }
     },
-    [token],
+    [token, loadDayAcceptances],
   );
 
   const refreshDetail = useCallback(async () => {
@@ -618,6 +707,38 @@ export default function SupervisorTimesheetsPage() {
       startISO && endISO ? today >= startISO && today <= endISO : false;
 
     const result: TimesheetAction[] = [];
+
+    // Submit action (foreman submits their own timesheet)
+    result.push({
+      id: "submit",
+      label: "Submit Timesheet",
+      canPerform: (s) => s !== "APPROVED" && s !== "PAID" && s !== "SUBMITTED",
+      handler: async () => {
+        if (!activeId) return;
+        await postJson(
+          `${base}/timesheets/${encodeURIComponent(activeId)}/submit`,
+        );
+        toast.success("Timesheet submitted");
+        setTimeout(() => loadList(), 300);
+        setTimeout(() => refreshDetail(), 300);
+      },
+    });
+
+    // Close action (supervisor closes a submitted timesheet)
+    result.push({
+      id: "close",
+      label: "Close Timesheet",
+      canPerform: (s) => s === "SUBMITTED",
+      handler: async () => {
+        if (!activeId) return;
+        await postJson(
+          `${base}/timesheets/${encodeURIComponent(activeId)}/close`,
+        );
+        toast.success("Timesheet closed");
+        setTimeout(() => loadList(), 300);
+        setTimeout(() => refreshDetail(), 300);
+      },
+    });
 
     if (isWithinPeriod && !isLastDayOrLater) {
       result.push({
@@ -875,6 +996,7 @@ export default function SupervisorTimesheetsPage() {
               <SelectContent>
                 <SelectItem value="ALL">All</SelectItem>
                 <SelectItem value="SUBMITTED">Submitted</SelectItem>
+                <SelectItem value="ACCEPTED">Accepted</SelectItem>
                 <SelectItem value="APPROVED">Approved</SelectItem>
                 <SelectItem value="REJECTED">Rejected</SelectItem>
                 <SelectItem value="PAID">Paid</SelectItem>
@@ -1190,6 +1312,87 @@ export default function SupervisorTimesheetsPage() {
                       placeholder="Type reason…"
                       className="min-h-20"
                     />
+                  </div>
+                ) : null}
+
+                {dayAcceptanceSummary ? (
+                  <div className="mt-3 max-w-2xl rounded border bg-muted/40 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-medium">
+                        Day acceptance progress
+                      </div>
+                      <div className="text-xs text-muted-foreground text-right">
+                        <div>
+                          {dayAcceptanceSummary.accepted}/
+                          {dayAcceptanceSummary.totalDays} days accepted
+                        </div>
+                        <div>
+                          {dayAcceptanceSummary.rejected} rejected,{" "}
+                          {dayAcceptanceSummary.pending} pending
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 text-xs">
+                      {dayAcceptanceSummary.sorted.map((a) => {
+                        const d = new Date(`${a.workDate}T00:00:00.000Z`);
+                        const label = d.toLocaleDateString(undefined, {
+                          day: "2-digit",
+                          month: "short",
+                          weekday: "short",
+                        });
+                        const time = a.acceptedAt || a.rejectedAt;
+                        const timeLabel = time
+                          ? new Date(time).toLocaleTimeString(undefined, {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "-";
+
+                        const statusLabel =
+                          a.status === "ACCEPTED"
+                            ? "Accepted"
+                            : a.status === "REJECTED"
+                              ? "Rejected"
+                              : a.status;
+
+                        return (
+                          <div
+                            key={`${a.workDate}-${a.status}-${time ?? ""}`}
+                            className="flex items-center justify-between gap-2 rounded bg-background px-2 py-1"
+                          >
+                            <div className="flex-1 truncate">
+                              <span className="font-medium mr-2">{label}</span>
+                              <span
+                                className={
+                                  a.status === "ACCEPTED"
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : a.status === "REJECTED"
+                                      ? "text-rose-600 dark:text-rose-400"
+                                      : "text-muted-foreground"
+                                }
+                              >
+                                {statusLabel}
+                              </span>
+                              {a.rejectionReason ? (
+                                <span className="ml-2 text-muted-foreground">
+                                  · {a.rejectionReason}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="w-16 text-right text-muted-foreground">
+                              {timeLabel}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {dayAcceptancesErr ? (
+                      <div className="text-xs text-rose-600 dark:text-rose-400">
+                        {dayAcceptancesErr}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

@@ -17,10 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 
 const API_BASE_URL =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 type FortnightResult = {
   startISO: string;
@@ -626,14 +628,14 @@ export default function SettingsPage() {
 
                 {/* Preview */}
                 {fortnight ? (
-                  <div className="space-y-4 bg-slate-50 dark:bg-slate-900 p-4 rounded border border-slate-200 dark:border-slate-700">
+                  <div className="space-y-4 bg-muted p-4 rounded border border-border">
                     <div className="space-y-3">
                       <div className="space-y-2">
                         <Label className="text-sm font-semibold">
                           Fortnight ID
                         </Label>
                         <div className="flex items-center gap-2">
-                          <code className="flex-1 px-3 py-2 bg-background border border-slate-300 dark:border-slate-600 rounded text-xs font-mono break-all">
+                          <code className="flex-1 px-3 py-2 bg-background border border-border rounded text-xs font-mono break-all">
                             {fortnight.id}
                           </code>
                           <Button
@@ -658,7 +660,7 @@ export default function SettingsPage() {
                             Start Date
                           </Label>
                           <div className="flex items-center gap-2">
-                            <code className="flex-1 px-3 py-2 bg-background border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">
+                            <code className="flex-1 px-3 py-2 bg-background border border-border rounded text-xs font-mono">
                               {fortnight.startISO}
                             </code>
                             <Button
@@ -685,7 +687,7 @@ export default function SettingsPage() {
                             End Date
                           </Label>
                           <div className="flex items-center gap-2">
-                            <code className="flex-1 px-3 py-2 bg-background border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">
+                            <code className="flex-1 px-3 py-2 bg-background border border-border rounded text-xs font-mono">
                               {fortnight.endISO}
                             </code>
                             <Button

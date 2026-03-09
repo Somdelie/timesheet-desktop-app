@@ -86,10 +86,12 @@ type Employee = {
 };
 
 const API_BASE_URL =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -405,19 +407,19 @@ export default function ForemanPage() {
     <>
       <div className="space-y-4 ">
         {/* Search */}
-        <div className="rounded border border-zinc-200/50 bg-white/80 backdrop-blur-sm px-5 py-3 shadow-sm transition-all hover:shadow-md dark:border-zinc-700/50 dark:bg-card/40">
+        <div className="rounded border border-border/50 bg-card/80 backdrop-blur-sm px-5 py-3 shadow-sm transition-all hover:shadow-md">
           <div className="flex flex-col gap-4 sm:flex-row items-end sm:justify-between">
             <div className="flex-1 w-full">
-              <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
+              <label className="block text-sm font-semibold text-foreground mb-2">
                 Search Foremen, Manage all foremen in the system.
               </label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search by name or email..."
-                  className="h-10 pl-9 dark:bg-zinc-800/50 dark:border-zinc-700/50 dark:text-white dark:placeholder-zinc-500"
+                  className="h-10 pl-9"
                 />
               </div>
             </div>
@@ -432,176 +434,188 @@ export default function ForemanPage() {
 
         {/* Table */}
         {paged.length === 0 ? (
-          <div className="rounded border border-dashed border-zinc-300 bg-white/50 p-12 text-center dark:border-zinc-700/50 dark:bg-card/30">
-            <div className="mx-auto w-12 h-12 rounded-full bg-zinc-100 dark:bg-slate-950 flex items-center justify-center mb-4">
-              <Search className="h-6 w-6 text-zinc-400 dark:text-zinc-500" />
+          <div className="rounded border border-dashed border-border bg-card/50 p-12 text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+              <Search className="h-6 w-6 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
+            <h3 className="text-lg font-semibold text-foreground">
               No foremen found
             </h3>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="mt-1 text-sm text-muted-foreground">
               Try adjusting your search or create a new foreman to get started.
             </p>
           </div>
         ) : (
           <div className="border bg-card rounded overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/60 border-b">
-                  <TableHead className="border-r">
-                    <button
-                      className="flex items-center gap-1 hover:text-foreground transition-colors"
-                      onClick={() => toggleSort("name")}
-                    >
-                      <User className="h-4 w-4 text-sky-600" />
-                      Name
-                      {sortKey === "name" ? (
-                        sortDir === "asc" ? (
-                          <ChevronUp className="h-4 w-4" />
+            <div className="overflow-x-auto">
+              <Table className="border-collapse">
+                <TableHeader className="bg-muted/60">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-700">
+                      <button
+                        className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        onClick={() => toggleSort("name")}
+                      >
+                        <User className="h-3 w-3" />
+                        Name
+                        {sortKey === "name" ? (
+                          sortDir === "asc" ? (
+                            <ChevronUp className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )
                         ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </button>
-                  </TableHead>
-                  <TableHead className="border-r">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-indigo-600" />
-                      Email
-                    </div>
-                  </TableHead>
-                  <TableHead className="border-r">
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-emerald-600" />
-                      Day Rate
-                    </div>
-                  </TableHead>
-                  <TableHead className="border-r">
-                    <button
-                      className="flex items-center gap-1 hover:text-foreground transition-colors"
-                      onClick={() => toggleSort("createdAt")}
-                    >
-                      <CalendarDays className="h-4 w-4 text-orange-600" />
-                      Added
-                      {sortKey === "createdAt" ? (
-                        sortDir === "asc" ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </button>
-                  </TableHead>
-                  <TableHead className="text-center border-r last:border-r-0">
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paged.map((foreman) => {
-                  const name = foreman.name || "—";
-                  const initials =
-                    name !== "—"
-                      ? name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .slice(0, 2)
-                      : "?";
-
-                  return (
-                    <TableRow key={foreman.foremanId}>
-                      <TableCell className="border-r">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border bg-primary text-white text-xs font-semibold">
-                            {initials}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{name}</span>
-                            {foreman.isAssistant && (
-                              <Badge
-                                variant="secondary"
-                                className="text-[11px] bg-orange-700/20 text-orange-700 dark:bg-orange-300/20 dark:text-orange-300"
-                              >
-                                Assistant
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="border-r">
-                        <span className="text-sm">{foreman.email}</span>
-                      </TableCell>
-                      <TableCell className="border-r">
-                        {foreman.isAssistant ? (
-                          <span className="text-xs text-muted-foreground italic">
-                            Assistant
-                          </span>
-                        ) : (
-                          <span className="text-sm">
-                            {formatMoney(
-                              foreman.foreman?.defaultDayRate ?? null,
-                            )}
-                          </span>
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
                         )}
-                      </TableCell>
-                      <TableCell className="border-r text-xs">
-                        {formatDate(foreman.createdAt)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              aria-label="Row actions"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuItem
-                              className="flex items-center gap-2"
-                              onSelect={(e) => {
-                                e.preventDefault();
-                                openDialog(foreman);
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            {!foreman.isAssistant && user?.role === "ADMIN" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="flex items-center gap-2"
-                                  onSelect={(e) => {
-                                    e.preventDefault();
-                                    handleOpenAddAssistant(foreman);
-                                  }}
+                      </button>
+                    </TableHead>
+                    <TableHead className="border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-700">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-3 w-3" />
+                        Email
+                      </div>
+                    </TableHead>
+                    <TableHead className="border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-700">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-3 w-3" />
+                        Day Rate
+                      </div>
+                    </TableHead>
+                    <TableHead className="border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-700">
+                      <button
+                        className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        onClick={() => toggleSort("createdAt")}
+                      >
+                        <CalendarDays className="h-3 w-3" />
+                        Added
+                        {sortKey === "createdAt" ? (
+                          sortDir === "asc" ? (
+                            <ChevronUp className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </button>
+                    </TableHead>
+                    <TableHead className="border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-700 text-center">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paged.map((foreman) => {
+                    const name = foreman.name || "—";
+                    const initials =
+                      name !== "—"
+                        ? name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)
+                        : "?";
+
+                    return (
+                      <TableRow
+                        key={foreman.foremanId}
+                        className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
+                      >
+                        <TableCell className="border border-zinc-200 px-3 py-1 dark:border-zinc-700">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border bg-primary text-white text-xs font-semibold">
+                              {initials}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{name}</span>
+                              {foreman.isAssistant && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[11px] bg-orange-700/20 text-orange-700 dark:bg-orange-300/20 dark:text-orange-300"
                                 >
-                                  <UserPlus className="h-4 w-4" />
-                                  Add Assistant
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                                  Assistant
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="border border-zinc-200 px-3 py-1 dark:border-zinc-700">
+                          <span className="text-sm">{foreman.email}</span>
+                        </TableCell>
+                        <TableCell className="border border-zinc-200 px-3 py-1 dark:border-zinc-700">
+                          {foreman.isAssistant ? (
+                            <span className="text-xs text-muted-foreground italic">
+                              Assistant
+                            </span>
+                          ) : (
+                            <span className="text-sm">
+                              {formatMoney(
+                                foreman.foreman?.defaultDayRate ?? null,
+                              )}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="border border-zinc-200 px-3 py-1 dark:border-zinc-700 text-xs">
+                          {formatDate(foreman.createdAt)}
+                        </TableCell>
+                        <TableCell className="border border-zinc-200 px-3 py-1 dark:border-zinc-700 text-center">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                aria-label="Row actions"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem
+                                className="flex items-center gap-2"
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  openDialog(foreman);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              {!foreman.isAssistant &&
+                                user?.role === "ADMIN" && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="flex items-center gap-2"
+                                      onSelect={(e) => {
+                                        e.preventDefault();
+                                        handleOpenAddAssistant(foreman);
+                                      }}
+                                    >
+                                      <UserPlus className="h-4 w-4" />
+                                      Add Assistant
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-4 py-3 border-t">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Rows per page:</span>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 border-t px-4 py-3 bg-muted/60 text-sm">
+              <span className="text-muted-foreground">
+                Showing{" "}
+                <b>{filtered.length === 0 ? 0 : pageIndex * pageSize + 1}</b> to{" "}
+                <b>{Math.min((pageIndex + 1) * pageSize, filtered.length)}</b>{" "}
+                of <b>{filtered.length}</b>
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs">Rows</span>
                 <Select
                   value={String(pageSize)}
                   onValueChange={(v) => {
@@ -609,7 +623,7 @@ export default function ForemanPage() {
                     setPageIndex(0);
                   }}
                 >
-                  <SelectTrigger className="h-8 w-17.5">
+                  <SelectTrigger className="h-8 w-[70px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -620,45 +634,46 @@ export default function ForemanPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-sm text-muted-foreground mr-2">
-                  Page {pageIndex + 1} of {totalPages || 1}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setPageIndex(0)}
-                  disabled={pageIndex === 0}
-                >
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
-                  disabled={pageIndex === 0}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() =>
-                    setPageIndex((p) => Math.min(totalPages - 1, p + 1))
-                  }
-                  disabled={pageIndex >= totalPages - 1}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setPageIndex(totalPages - 1)}
-                  disabled={pageIndex >= totalPages - 1}
-                >
-                  <ChevronsRight className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setPageIndex(0)}
+                    disabled={pageIndex === 0}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+                    disabled={pageIndex === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() =>
+                      setPageIndex((p) => Math.min(totalPages - 1, p + 1))
+                    }
+                    disabled={pageIndex >= totalPages - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setPageIndex(totalPages - 1)}
+                    disabled={pageIndex >= totalPages - 1}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -748,8 +763,8 @@ export default function ForemanPage() {
 
               {/* Created Date */}
               <div className="flex items-start gap-3">
-                <div className="mt-1 p-2 bg-slate-100 dark:bg-slate-800 rounded">
-                  <Calendar size={18} className="text-slate-600" />
+                <div className="mt-1 p-2 bg-muted rounded">
+                  <Calendar size={18} className="text-muted-foreground" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs font-semibold text-muted-foreground tracking-wider">
@@ -763,8 +778,8 @@ export default function ForemanPage() {
 
               {/* Foreman Created Date */}
               <div className="flex items-start gap-3">
-                <div className="mt-1 p-2 bg-slate-100 dark:bg-slate-800 rounded">
-                  <Calendar size={18} className="text-slate-600" />
+                <div className="mt-1 p-2 bg-muted rounded">
+                  <Calendar size={18} className="text-muted-foreground" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs font-semibold text-muted-foreground tracking-wider">
@@ -792,7 +807,7 @@ export default function ForemanPage() {
                 <Button
                   variant="outline"
                   onClick={closeDialog}
-                  className="flex-1 font-medium h-10 border-slate-200 hover:bg-slate-50"
+                  className="flex-1 font-medium h-10 border-border hover:bg-muted"
                 >
                   Close
                 </Button>

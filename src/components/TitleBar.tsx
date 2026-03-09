@@ -126,7 +126,7 @@ function TitleBar() {
   };
 
   return (
-    <header className="titlebar bg-card/80 text-card-foreground border-b border-border">
+    <header className="titlebar border-b border-border bg-card/80 text-card-foreground dark:bg-card/80 dark:text-card-foreground">
       {/* Left section */}
       <div className="titlebar-left">
         <Button variant="icon" size="icon" onClick={toggleSidebar}>

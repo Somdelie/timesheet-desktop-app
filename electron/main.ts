@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, session } from "electron";
 import path from "path";
 
 let mainWindow: BrowserWindow | null = null;
@@ -7,9 +7,9 @@ const childWindows: Set<BrowserWindow> = new Set();
 function getIconPath() {
   const isDev = process.env.VITE_DEV_SERVER_URL;
   if (isDev) {
-    return path.join(__dirname, "../public/logo.png");
+    return path.join(__dirname, "../public/icon.png");
   }
-  return path.join(__dirname, "../dist/logo.png");
+  return path.join(__dirname, "../dist/icon.png");
 }
 
 function createWindow() {
@@ -104,7 +104,38 @@ ipcMain.on("print-with-backgrounds", () => {
   }
 });
 
-app.on("ready", createWindow);
+app.on("ready", () => {
+  // Bypass CORS for API requests in the Electron renderer.
+  // The desktop app loads from file:// and calls external APIs, so the
+  // browser engine enforces CORS.  Injecting permissive headers at the
+  // Electron session level avoids issues regardless of server config.
+  // We strip existing CORS headers first to avoid duplicates (e.g. Google
+  // Fonts already sends Access-Control-Allow-Origin: * and doubling it
+  // causes the browser to reject the response).
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const headers = { ...details.responseHeaders };
+
+    // Remove any existing CORS headers (case-insensitive) to prevent duplicates
+    for (const key of Object.keys(headers)) {
+      if (key.toLowerCase().startsWith("access-control-allow-")) {
+        delete headers[key];
+      }
+    }
+
+    callback({
+      responseHeaders: {
+        ...headers,
+        "Access-Control-Allow-Origin": ["*"],
+        "Access-Control-Allow-Headers": ["Content-Type, Authorization"],
+        "Access-Control-Allow-Methods": [
+          "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        ],
+      },
+    });
+  });
+
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

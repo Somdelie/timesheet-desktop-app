@@ -62,9 +62,9 @@ type WeeklyAttendanceItem = {
   sites: number;
 };
 
-type TimesheetStatusItem = {
-  status: string;
-  count: number;
+type TopSiteWageItem = {
+  site: string;
+  wages: number;
 };
 
 type SiteActivityItem = {
@@ -79,13 +79,58 @@ type PhotoVerificationItem = {
   flagged: number;
 };
 
+const WAGE_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899"];
+
+function formatWageCurrency(val: number): string {
+  if (val >= 1000) return `R${(val / 1000).toFixed(1)}k`;
+  return `R${val.toFixed(0)}`;
+}
+
+function TopSiteWagesChart({
+  data,
+}: {
+  data: { site: string; wages: number }[];
+}) {
+  const max = Math.max(1, ...data.map((s) => s.wages));
+  return (
+    <div className="flex flex-col gap-3 py-1">
+      {data.map((item, idx) => {
+        const pct = (item.wages / max) * 100;
+        const color = WAGE_COLORS[idx % WAGE_COLORS.length];
+        return (
+          <div key={idx} className="flex items-center gap-3">
+            <div className="flex items-center gap-2 w-27.5 min-w-27.5">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: color }}
+              />
+              <span className="text-sm font-semibold truncate text-foreground">
+                {item.site}
+              </span>
+            </div>
+            <div className="flex-1 h-6 rounded bg-muted/40 overflow-hidden">
+              <div
+                className="h-full rounded transition-all duration-500"
+                style={{
+                  width: `${Math.max(pct, 4)}%`,
+                  backgroundColor: color,
+                  opacity: 0.85,
+                }}
+              />
+            </div>
+            <span className="text-sm font-bold text-muted-foreground w-15 text-right tabular-nums">
+              {formatWageCurrency(item.wages)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const lineChartConfig = {
   scans: { label: "Attendance Scans", color: "#1e5a8a" },
   sites: { label: "Active Sites", color: "#2ba3c1" },
-} satisfies ChartConfig;
-
-const barChartConfig = {
-  count: { label: "Timesheets", color: "#1e5a8a" },
 } satisfies ChartConfig;
 
 const siteChartConfig = {
@@ -126,41 +171,67 @@ function activityVisual(kind: string) {
     case "TIMESHEET_APPROVED":
       return {
         Icon: CheckCircle,
-        color: "text-emerald-600",
-        bg: "bg-emerald-100",
+        color: "text-emerald-600 dark:text-emerald-400",
+        bg: "bg-emerald-100 dark:bg-emerald-500/20",
       };
     case "TIMESHEET_SUBMITTED":
       return {
         Icon: ClipboardCheck,
-        color: "text-blue-600",
-        bg: "bg-blue-100",
+        color: "text-blue-600 dark:text-blue-400",
+        bg: "bg-blue-100 dark:bg-blue-500/20",
       };
     case "TIMESHEET_REJECTED":
-      return { Icon: AlertCircle, color: "text-red-600", bg: "bg-red-100" };
+      return {
+        Icon: AlertCircle,
+        color: "text-red-600 dark:text-red-400",
+        bg: "bg-red-100 dark:bg-red-500/20",
+      };
     case "TIMESHEET_PAID":
-      return { Icon: Clock, color: "text-indigo-600", bg: "bg-indigo-100" };
+      return {
+        Icon: Clock,
+        color: "text-indigo-600 dark:text-indigo-400",
+        bg: "bg-indigo-100 dark:bg-indigo-500/20",
+      };
     case "EMPLOYEE_CREATED":
-      return { Icon: Users, color: "text-cyan-600", bg: "bg-cyan-100" };
+      return {
+        Icon: Users,
+        color: "text-cyan-600 dark:text-cyan-400",
+        bg: "bg-cyan-100 dark:bg-cyan-500/20",
+      };
     case "SITE_CREATED":
-      return { Icon: Building2, color: "text-violet-600", bg: "bg-violet-100" };
+      return {
+        Icon: Building2,
+        color: "text-violet-600 dark:text-violet-400",
+        bg: "bg-violet-100 dark:bg-violet-500/20",
+      };
     case "PHOTO_VERIFIED":
-      return { Icon: Camera, color: "text-green-600", bg: "bg-green-100" };
+      return {
+        Icon: Camera,
+        color: "text-green-600 dark:text-green-400",
+        bg: "bg-green-100 dark:bg-green-500/20",
+      };
     case "PHOTO_FLAGGED":
       return {
         Icon: AlertCircle,
-        color: "text-orange-600",
-        bg: "bg-orange-100",
+        color: "text-orange-600 dark:text-orange-400",
+        bg: "bg-orange-100 dark:bg-orange-500/20",
       };
     default:
-      return { Icon: TrendingUp, color: "text-slate-600", bg: "bg-slate-100" };
+      return {
+        Icon: TrendingUp,
+        color: "text-slate-600 dark:text-slate-400",
+        bg: "bg-slate-100 dark:bg-slate-500/20",
+      };
   }
 }
 
 const API_BASE_URL =
-  import.meta.env.MODE === "production"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === "production"
     ? "https://firstclassprojects.netlify.app"
-    : import.meta.env.VITE_API_BASE_URL ||
-      (import.meta.env.DEV ? "" : "http://localhost:3000");
+    : import.meta.env.DEV
+      ? ""
+      : "http://localhost:3000");
 
 const ADMIN_CACHE_KEY = "dashboard-admin-v1";
 const SUP_CACHE_KEY = "dashboard-supervisor-v1";
@@ -170,7 +241,7 @@ export default function DashboardPage() {
   const { isOnline } = useOffline();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [weeklyData, setWeeklyData] = useState<WeeklyAttendanceItem[]>([]);
-  const [timesheetData, setTimesheetData] = useState<TimesheetStatusItem[]>([]);
+  const [topWagesData, setTopWagesData] = useState<TopSiteWageItem[]>([]);
   const [siteData, setSiteData] = useState<SiteActivityItem[]>([]);
   const [photoData, setPhotoData] = useState<PhotoVerificationItem[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>(
@@ -206,7 +277,7 @@ export default function DashboardPage() {
               const json = cached.payload ?? {};
               setMetrics(json.metrics ?? null);
               setWeeklyData(json.weeklyAttendance || []);
-              setTimesheetData(json.timesheetStatus || []);
+              setTopWagesData(json.topSiteWages || json.timesheetStatus || []);
               setSiteData(json.siteActivity || []);
               setPhotoData(json.photoVerification || []);
               setRecentActivity(json.recentActivity || []);
@@ -229,7 +300,7 @@ export default function DashboardPage() {
             if (cached && now - cached.ts < cacheValidityMs) {
               const json = cached.payload ?? {};
               setWeeklyData(json.weeklyAttendance || []);
-              setTimesheetData(json.timesheetStatus || []);
+              setTopWagesData(json.topSiteWages || json.timesheetStatus || []);
               setSiteData(json.siteActivity || []);
               setPhotoData(json.photoVerification || []);
               setRecentActivity(json.recentActivity || []);
@@ -249,8 +320,10 @@ export default function DashboardPage() {
       };
 
       try {
+        const dashboardUrl = `${API_BASE_URL}/api/dashboard?type=all`;
+
         const [dashboardRes, activityRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/dashboard?type=all`, { headers }),
+          fetch(dashboardUrl, { headers }),
           fetch(`${API_BASE_URL}/api/recent-activity?limit=8`, { headers }),
         ]);
 
@@ -262,7 +335,7 @@ export default function DashboardPage() {
           dashboardData = await dashboardRes.json();
           setMetrics(dashboardData.metrics);
           setWeeklyData(dashboardData.weeklyAttendance || []);
-          setTimesheetData(dashboardData.timesheetStatus || []);
+          setTopWagesData(dashboardData.topSiteWages || []);
           setSiteData(dashboardData.siteActivity || []);
           setPhotoData(dashboardData.photoVerification || []);
         }
@@ -294,7 +367,7 @@ export default function DashboardPage() {
             const payload = {
               metrics: dashboardData.metrics,
               weeklyAttendance: dashboardData.weeklyAttendance || [],
-              timesheetStatus: dashboardData.timesheetStatus || [],
+              topSiteWages: dashboardData.topSiteWages || [],
               siteActivity: dashboardData.siteActivity || [],
               photoVerification: dashboardData.photoVerification || [],
               recentActivity: activityItems,
@@ -329,7 +402,7 @@ export default function DashboardPage() {
               const json = cached.payload;
               setMetrics(json.metrics ?? null);
               setWeeklyData(json.weeklyAttendance || []);
-              setTimesheetData(json.timesheetStatus || []);
+              setTopWagesData(json.topSiteWages || json.timesheetStatus || []);
               setSiteData(json.siteActivity || []);
               setPhotoData(json.photoVerification || []);
               setRecentActivity(json.recentActivity || []);
@@ -374,7 +447,7 @@ export default function DashboardPage() {
   }
 
   const weeklyAttendanceData = weeklyData || [];
-  const timesheetStatusData = timesheetData || [];
+  const topSiteWagesData = topWagesData || [];
   const siteActivityData = siteData || [];
   const photoVerificationData = photoData || [];
 
@@ -458,37 +531,18 @@ export default function DashboardPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Timesheet Status (My Sites)</CardTitle>
+                <CardTitle>Top 5 Site Wages (My Sites)</CardTitle>
                 <CardDescription>
-                  Current status of timesheets you manage.
+                  Total wages across the sites you manage.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {timesheetStatusData.length === 0 ? (
+                {topSiteWagesData.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-6">
-                    No timesheet data yet for your sites.
+                    No wage data yet for your sites.
                   </p>
                 ) : (
-                  <ChartContainer
-                    config={barChartConfig}
-                    className="h-full w-full"
-                  >
-                    <BarChart data={timesheetStatusData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis
-                        dataKey="status"
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis tickLine={false} axisLine={false} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar
-                        dataKey="count"
-                        fill="var(--color-count)"
-                        radius={[8, 8, 0, 0]}
-                      />
-                    </BarChart>
-                  </ChartContainer>
+                  <TopSiteWagesChart data={topSiteWagesData} />
                 )}
               </CardContent>
             </Card>
@@ -731,13 +785,13 @@ export default function DashboardPage() {
 
   // Default: ADMIN dashboard with full system overview
   return (
-    <div className="flex flex-col min-h-screen bg-muted/30">
+    <div className="flex flex-col min-h-screen ">
       <div className="flex-1 space-y-2">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">
-              Admin Dashboard
+              Dashboard Overview
             </h1>
             <p className="text-muted-foreground mt-1">
               Overview of workforce management system
@@ -767,10 +821,10 @@ export default function DashboardPage() {
         {/* Key Metrics - Animated Wave Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Active Employees */}
-          <Card className="p-4 relative overflow-hidden bg-slate-900/90 border-blue-800">
+          <Card className="p-4 relative overflow-hidden border-blue-200 dark:border-blue-800">
             {/* Water Background */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14">
-              <div className="absolute inset-0 bg-linear-to-r from-blue-500/25 to-blue-500/5 opacity-60" />
+              <div className="absolute inset-0 bg-linear-to-r from-blue-500/10 dark:from-blue-500/25 to-blue-500/5 opacity-60" />
               <svg
                 viewBox="0 0 2880 90"
                 preserveAspectRatio="none"
@@ -778,12 +832,12 @@ export default function DashboardPage() {
               >
                 <path
                   fill="currentColor"
-                  className="text-white/10"
+                  className="text-blue-500/10 dark:text-white/10"
                   d="M0,40 C120,55 240,20 360,30 480,40 600,70 720,65 840,60 960,35 1080,30 1200,25 1320,40 1440,50 L1440,90 L0,90 Z"
                 />
                 <path
                   fill="currentColor"
-                  className="text-white/10"
+                  className="text-blue-500/10 dark:text-white/10"
                   transform="translate(1440 0)"
                   d="M0,40 C120,55 240,20 360,30 480,40 600,70 720,65 840,60 960,35 1080,30 1200,25 1320,40 1440,50 L1440,90 L0,90 Z"
                 />
@@ -793,15 +847,17 @@ export default function DashboardPage() {
             <CardContent className="p-0 relative z-10">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm text-blue-400 font-medium">
+                  <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
                     Active Employees
                   </p>
-                  <p className="text-3xl font-bold text-slate-100">
+                  <p className="text-3xl font-bold text-foreground">
                     {metrics?.totalEmployees ?? 0}
                   </p>
-                  <p className="text-xs text-slate-400">Total active staff</p>
+                  <p className="text-xs text-muted-foreground">
+                    Total active staff
+                  </p>
                 </div>
-                <div className="w-12 h-12 bg-blue-500/10 flex items-center justify-center">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-500/10 rounded flex items-center justify-center">
                   <Users className="w-6 h-6 text-blue-500" />
                 </div>
               </div>
@@ -809,9 +865,9 @@ export default function DashboardPage() {
           </Card>
 
           {/* Active Sites */}
-          <Card className="p-4 relative overflow-hidden bg-slate-900/90 border-cyan-800">
+          <Card className="p-4 relative overflow-hidden border-cyan-200 dark:border-cyan-800">
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14">
-              <div className="absolute inset-0 bg-linear-to-r from-cyan-500/25 to-cyan-500/5 opacity-60" />
+              <div className="absolute inset-0 bg-linear-to-r from-cyan-500/10 dark:from-cyan-500/25 to-cyan-500/5 opacity-60" />
               <svg
                 viewBox="0 0 2880 90"
                 preserveAspectRatio="none"
@@ -819,12 +875,12 @@ export default function DashboardPage() {
               >
                 <path
                   fill="currentColor"
-                  className="text-white/10"
+                  className="text-cyan-500/10 dark:text-white/10"
                   d="M0,40 C120,55 240,20 360,30 480,40 600,70 720,65 840,60 960,35 1080,30 1200,25 1320,40 1440,50 L1440,90 L0,90 Z"
                 />
                 <path
                   fill="currentColor"
-                  className="text-white/10"
+                  className="text-cyan-500/10 dark:text-white/10"
                   transform="translate(1440 0)"
                   d="M0,40 C120,55 240,20 360,30 480,40 600,70 720,65 840,60 960,35 1080,30 1200,25 1320,40 1440,50 L1440,90 L0,90 Z"
                 />
@@ -834,15 +890,17 @@ export default function DashboardPage() {
             <CardContent className="p-0 relative z-10">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm text-cyan-400 font-medium">
+                  <p className="text-sm text-cyan-600 dark:text-cyan-400 font-medium">
                     Active Sites
                   </p>
-                  <p className="text-3xl font-bold text-slate-100">
+                  <p className="text-3xl font-bold text-foreground">
                     {metrics?.activeSites ?? 0}
                   </p>
-                  <p className="text-xs text-slate-400">Across all regions</p>
+                  <p className="text-xs text-muted-foreground">
+                    Across all regions
+                  </p>
                 </div>
-                <div className="w-12 h-12 bg-cyan-500/10 flex items-center justify-center">
+                <div className="w-12 h-12 bg-cyan-100 dark:bg-cyan-500/10 rounded flex items-center justify-center">
                   <Building2 className="w-6 h-6 text-cyan-500" />
                 </div>
               </div>
@@ -850,9 +908,9 @@ export default function DashboardPage() {
           </Card>
 
           {/* Foremen */}
-          <Card className="p-4 relative overflow-hidden bg-slate-900/90 border-emerald-800">
+          <Card className="p-4 relative overflow-hidden border-emerald-200 dark:border-emerald-800">
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14">
-              <div className="absolute inset-0 bg-linear-to-r from-emerald-500/25 to-emerald-500/5 opacity-60" />
+              <div className="absolute inset-0 bg-linear-to-r from-emerald-500/10 dark:from-emerald-500/25 to-emerald-500/5 opacity-60" />
               <svg
                 viewBox="0 0 2880 90"
                 preserveAspectRatio="none"
@@ -860,12 +918,12 @@ export default function DashboardPage() {
               >
                 <path
                   fill="currentColor"
-                  className="text-white/10"
+                  className="text-emerald-500/10 dark:text-white/10"
                   d="M0,40 C120,55 240,20 360,30 480,40 600,70 720,65 840,60 960,35 1080,30 1200,25 1320,40 1440,50 L1440,90 L0,90 Z"
                 />
                 <path
                   fill="currentColor"
-                  className="text-white/10"
+                  className="text-emerald-500/10 dark:text-white/10"
                   transform="translate(1440 0)"
                   d="M0,40 C120,55 240,20 360,30 480,40 600,70 720,65 840,60 960,35 1080,30 1200,25 1320,40 1440,50 L1440,90 L0,90 Z"
                 />
@@ -875,18 +933,18 @@ export default function DashboardPage() {
             <CardContent className="p-0 relative z-10">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm text-emerald-400 font-medium">
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
                     Foremen
                   </p>
-                  <p className="text-3xl font-bold text-slate-100">
+                  <p className="text-3xl font-bold text-foreground">
                     {metrics?.totalForemen ?? 0}
                   </p>
-                  <p className="text-xs text-emerald-500 flex items-center gap-1">
+                  <p className="text-xs text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" />
                     Team leads
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-emerald-500/10 flex items-center justify-center">
+                <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-500/10 rounded flex items-center justify-center">
                   <ClipboardCheck className="w-6 h-6 text-emerald-500" />
                 </div>
               </div>
@@ -894,9 +952,9 @@ export default function DashboardPage() {
           </Card>
 
           {/* Supervisors */}
-          <Card className="p-4 relative overflow-hidden bg-slate-900/90 border-orange-800">
+          <Card className="p-4 relative overflow-hidden border-orange-200 dark:border-orange-800">
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14">
-              <div className="absolute inset-0 bg-linear-to-r from-orange-500/25 to-orange-500/5 opacity-60" />
+              <div className="absolute inset-0 bg-linear-to-r from-orange-500/10 dark:from-orange-500/25 to-orange-500/5 opacity-60" />
               <svg
                 viewBox="0 0 2880 90"
                 preserveAspectRatio="none"
@@ -904,12 +962,12 @@ export default function DashboardPage() {
               >
                 <path
                   fill="currentColor"
-                  className="text-white/10"
+                  className="text-orange-500/10 dark:text-white/10"
                   d="M0,40 C120,55 240,20 360,30 480,40 600,70 720,65 840,60 960,35 1080,30 1200,25 1320,40 1440,50 L1440,90 L0,90 Z"
                 />
                 <path
                   fill="currentColor"
-                  className="text-white/10"
+                  className="text-orange-500/10 dark:text-white/10"
                   transform="translate(1440 0)"
                   d="M0,40 C120,55 240,20 360,30 480,40 600,70 720,65 840,60 960,35 1080,30 1200,25 1320,40 1440,50 L1440,90 L0,90 Z"
                 />
@@ -919,18 +977,18 @@ export default function DashboardPage() {
             <CardContent className="p-0 relative z-10">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm text-orange-400 font-medium">
+                  <p className="text-sm text-orange-600 dark:text-orange-400 font-medium">
                     Supervisors
                   </p>
-                  <p className="text-3xl font-bold text-slate-100">
+                  <p className="text-3xl font-bold text-foreground">
                     {metrics?.totalSupervisors ?? 0}
                   </p>
-                  <p className="text-xs text-orange-500 flex items-center gap-1">
+                  <p className="text-xs text-orange-600 dark:text-orange-500 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     Active Supervisors
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-orange-500/10 flex items-center justify-center">
+                <div className="w-12 h-12 bg-orange-100 dark:bg-orange-500/10 rounded flex items-center justify-center">
                   <Camera className="w-6 h-6 text-orange-500" />
                 </div>
               </div>
@@ -977,28 +1035,20 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Timesheet Status */}
+          {/* Top 5 Site Wages */}
           <Card className="max-h-75 flex flex-col">
             <CardHeader className="pb-2">
-              <CardTitle>Timesheet Status</CardTitle>
-              <CardDescription>
-                Current status of timesheet submissions
-              </CardDescription>
+              <CardTitle>Top 5 Site Wages</CardTitle>
+              <CardDescription>Total wages by site</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 min-h-0">
-              <ChartContainer config={barChartConfig} className="h-full w-full">
-                <BarChart data={timesheetStatusData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="status" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar
-                    dataKey="count"
-                    fill="var(--color-count)"
-                    radius={[8, 8, 0, 0]}
-                  />
-                </BarChart>
-              </ChartContainer>
+              {topSiteWagesData.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No wage data available.
+                </p>
+              ) : (
+                <TopSiteWagesChart data={topSiteWagesData} />
+              )}
             </CardContent>
           </Card>
         </div>
