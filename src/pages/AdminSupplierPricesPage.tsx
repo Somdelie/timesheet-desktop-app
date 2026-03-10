@@ -378,7 +378,7 @@ export default function AdminSupplierPricesPage() {
       try {
         const [pRes, sRes, uomRes] = await Promise.all([
           fetch(
-            `${API_BASE_URL}/api/app/admin/procurement-products?includeInactive=true`,
+            `${API_BASE_URL}/api/app/admin/procurement-products?includeInactive=true&limit=500&page=1`,
             {
               headers: {
                 accept: "application/json",
@@ -387,7 +387,7 @@ export default function AdminSupplierPricesPage() {
             },
           ),
           fetch(
-            `${API_BASE_URL}/api/app/admin/suppliers?includeInactive=false`,
+            `${API_BASE_URL}/api/app/admin/suppliers?includeInactive=false&limit=500&page=1`,
             {
               headers: {
                 accept: "application/json",

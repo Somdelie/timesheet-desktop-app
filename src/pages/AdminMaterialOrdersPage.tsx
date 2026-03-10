@@ -231,7 +231,7 @@ export default function AdminMaterialOrdersPage() {
             },
           }),
           fetch(
-            `${API_BASE_URL}/api/app/admin/suppliers?includeInactive=false`,
+            `${API_BASE_URL}/api/app/admin/suppliers?includeInactive=false&limit=500&page=1`,
             {
               headers: {
                 accept: "application/json",
@@ -240,7 +240,7 @@ export default function AdminMaterialOrdersPage() {
             },
           ),
           fetch(
-            `${API_BASE_URL}/api/app/admin/procurement-products?includeInactive=false`,
+            `${API_BASE_URL}/api/app/admin/procurement-products?includeInactive=false&limit=500&page=1`,
             {
               headers: {
                 accept: "application/json",

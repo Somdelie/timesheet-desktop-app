@@ -340,6 +340,10 @@ export default function AdminSuppliersPage() {
       const params = new URLSearchParams();
       if (search.trim()) params.set("q", search.trim());
       if (showInactive) params.set("includeInactive", "true");
+      // Use server-side pagination with a safe per-page cap
+      params.set("limit", "100");
+      params.set("page", "1");
+
       const url = `${API_BASE_URL}/api/app/admin/suppliers?${params.toString()}`;
 
       const res = await fetch(url, {
