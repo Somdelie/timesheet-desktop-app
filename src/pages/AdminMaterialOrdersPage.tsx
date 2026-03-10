@@ -676,7 +676,7 @@ export default function AdminMaterialOrdersPage() {
                           {order.supplierName ?? "—"}
                         </TableCell>
                         <TableCell className="border border-zinc-200 px-3 py-1 dark:border-zinc-700 text-sm">
-                          {order.reference ?? "—"}
+                          {order.reference ? `#${order.reference}` : "—"}
                         </TableCell>
                         <TableCell className="border border-zinc-200 px-3 py-1 dark:border-zinc-700 text-sm">
                           {order.items.length} item
