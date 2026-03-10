@@ -155,8 +155,8 @@ export default function AdminProcurementProductsPage() {
       if (showInactive) params.set("includeInactive", "true");
       if (filterCategory) params.set("categoryId", filterCategory);
       if (filterSupplier) params.set("supplierId", filterSupplier);
-      // Use backend pagination with an explicit first page + limit
-      params.set("limit", "100");
+      // Fetch up to 500 products once; paginate on the client only
+      params.set("limit", "500");
       params.set("page", "1");
 
       const url = `${API_BASE_URL}/api/app/admin/procurement-products?${params.toString()}`;
