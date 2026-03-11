@@ -79,6 +79,7 @@ const UOM_LABELS: Record<string, string> = {
   ML: "ml",
   L: "L",
   UNIT: "unit",
+  EACH: "each",
   PIECE: "piece",
   PACK: "pack",
   BOX: "box",
